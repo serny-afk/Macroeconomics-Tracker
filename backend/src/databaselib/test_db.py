@@ -24,12 +24,6 @@ from .embeddings import embed_document, embed_query
 # supabase.table("memory").delete().neq(
 #     "id", "00000000-0000-0000-0000-000000000000"
 # ).execute()
-# supabase.table("recommendations").delete().neq(
-#     "id", "00000000-0000-0000-0000-000000000000"
-# ).execute()
-# supabase.table("risk_alerts").delete().neq(
-#     "id", "00000000-0000-0000-0000-000000000000"
-# ).execute()
 # supabase.table("themes").delete().neq(
 #     "theme_id", "00000000-0000-0000-0000-000000000000"
 # ).execute()

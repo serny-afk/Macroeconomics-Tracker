@@ -166,7 +166,7 @@ export default function ArticleViewerPage() {
           <Link href="/" className={styles.backLink}>
             ← Dashboard
           </Link>
-          <p className={styles.brand}>DAMMIT MACROECONOMIC TRACKER</p>
+          <p className={styles.brand}>DMACRO</p>
         </div>
       </header>
 

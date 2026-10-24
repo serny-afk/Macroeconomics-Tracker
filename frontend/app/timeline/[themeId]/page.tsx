@@ -298,7 +298,7 @@ export default function TimelinePage() {
           <Link href="/" className={styles.backLink}>
             ← Dashboard
           </Link>
-          <p className={styles.brand}>DAMMIT FINANCE MANAGER</p>
+          <p className={styles.brand}>DMACRO</p>
         </div>
       </header>
 

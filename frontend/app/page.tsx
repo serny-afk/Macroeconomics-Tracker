@@ -4,8 +4,6 @@ import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } fro
 import Link from "next/link";
 import Image from "next/image";
 import {
-  Bell,
-  Bot,
   ChartCandlestick,
   Earth,
   History,
@@ -110,18 +108,6 @@ type HeatCell = {
   score: number;
 };
 
-type ChatMessage = {
-  role: "user" | "assistant";
-  text: string;
-};
-
-type AlertRule = {
-  name: string;
-  threshold: string;
-  status: "Breached" | "Watching";
-  detail: string;
-};
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL ?? "";
 const MAX_MACRO_GRAPHS = 8;
 const MAX_MARKET_GRAPHS = 8;
@@ -147,54 +133,6 @@ const MARKET_ENDPOINTS: Record<MarketFunction, string> = {
   TIME_SERIES_MONTHLY: "/api/market/time-series/monthly",
   TIME_SERIES_MONTHLY_ADJUSTED: "/api/market/time-series/monthly-adjusted",
 };
-
-// Placeholder chatbot example 
-const chatMessages: ChatMessage[] = [
-  {
-    role: "user",
-    text: "What macro themes are driving tech underperformance this week?",
-  },
-  {
-    role: "assistant",
-    text: "Primary drivers are higher real yields and concerns about forward earnings multiples.",
-  },
-];
-
-// Placeholder chain of thought reasoning by chatbot
-const chatReasoning = [
-  "Step 1: Pull latest yield curve and inflation surprise data.",
-  "Step 2: Compare factor exposure for mega-cap tech vs broad market.",
-  "Step 3: Rank themes by impact score and confidence.",
-];
-
-// Placeholder sources cited by chatbot when thinking
-const chatSources = [
-  "Macro: 10Y Real Yield",
-  "BLS CPI Release",
-  "SEC Filings: Selected tech names",
-];
-
-// Placeholder alerts
-const alertRules: AlertRule[] = [
-  {
-    name: "Portfolio VaR",
-    threshold: "1D VaR > 3.0%",
-    status: "Breached",
-    detail: "Current 1D VaR: 3.4%",
-  },
-  {
-    name: "Energy Theme Heat",
-    threshold: "Heat score > 65",
-    status: "Breached",
-    detail: "Current heat score: 69",
-  },
-  {
-    name: "USD Momentum",
-    threshold: "DXY weekly move > 1.2%",
-    status: "Watching",
-    detail: "Current weekly move: 0.8%",
-  },
-];
 
 function chooseXAxisGranularity(xLabels: string[]) {
   if (xLabels.length < 2) return "day";
@@ -399,10 +337,6 @@ function heatToneStyle(score: number): CSSProperties {
     borderColor: fill,
     color: textColor,
   };
-}
-
-function alertToneClass(status: AlertRule["status"]) {
-  return status === "Breached" ? styles.alertBreached : styles.alertWatching;
 }
 
 function toLabel(value: string) {
@@ -1028,10 +962,10 @@ export default function Home() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.brandRow}>
-            <p className={styles.brand}>DamnMacro</p>
+            <p className={styles.brand}>DMacro</p>
             <Image
               src="/logo.png"
-              alt="DamnMacro logo"
+              alt="DMacro logo"
               width={42}
               height={24}
               className={styles.brandLogo}
@@ -1067,18 +1001,6 @@ export default function Home() {
               <a href="#theme-heat" className={`${styles.moduleItem} ${styles.moduleLink}`}>
                 <Thermometer className={styles.moduleIcon} aria-hidden />
                 <span>Theme Heat</span>
-              </a>
-            </li>
-            <li>
-              <a href="#ai-assistant" className={`${styles.moduleItem} ${styles.moduleLink}`}>
-                <Bot className={styles.moduleIcon} aria-hidden />
-                <span>AI Assistant</span>
-              </a>
-            </li>
-            <li>
-              <a href="#notifications" className={`${styles.moduleItem} ${styles.moduleLink}`}>
-                <Bell className={styles.moduleIcon} aria-hidden />
-                <span>Alerts</span>
               </a>
             </li>
             <li>
@@ -1463,78 +1385,6 @@ export default function Home() {
               )}
             </section>
 
-            <section id="ai-assistant" className={styles.panel}>
-              <div className={styles.panelHead}>
-                <h2 className={styles.featureTitle}>
-                  Chatbot
-                </h2>
-                <span className={styles.annotation}>
-                  TODO: Implement RAG style chatbot (Traditonal/GraphRAG/Agentic RAG)
-                </span>
-              </div>
-
-              <div className={styles.chatThread}>
-                {chatMessages.map((msg, i) => (
-                  <div
-                    key={`${msg.role}-${i}`}
-                    className={`${styles.chatBubble} ${
-                      msg.role === "user" ? styles.chatUser : styles.chatAssistant
-                    }`}
-                  >
-                    <p className={styles.chatRole}>{msg.role}</p>
-                    <p className={styles.chatText}>{msg.text}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className={styles.chatDetail}>
-                <p className={styles.subHeading}>
-                  Chain of Thought
-                </p>
-                <ul className={styles.smallList}>
-                  {chatReasoning.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ul>
-                <p className={styles.subHeading}>
-                  Sources Cited
-                </p>
-                <ul className={styles.sourceList}>
-                  {chatSources.map((source) => (
-                    <li key={source}>- {source}</li>
-                  ))}
-                </ul>
-                <p className={styles.savedStatus}>
-                  Conversation status: Saved to backend session #CH-204
-                </p>
-              </div>
-            </section>
-
-            <section id="notifications" className={styles.panel}>
-              <div className={styles.panelHead}>
-                <h2 className={styles.featureTitle}>
-                  Notifications
-                </h2>
-                <span className={styles.annotation}>
-                  TODO: Create notification and send alert when heat thresholds are exceeded
-                </span>
-              </div>
-
-              <div className={styles.alertList}>
-                {alertRules.map((rule) => (
-                  <article key={rule.name} className={styles.alertCard}>
-                    <div className={styles.alertTop}>
-                      <p className={styles.alertName}>{rule.name}</p>
-                      <span className={`${styles.alertBadge} ${alertToneClass(rule.status)}`}>
-                        {rule.status}
-                      </span>
-                    </div>
-                    <p className={styles.alertMeta}>Trigger: {rule.threshold}</p>
-                    <p className={styles.alertDetail}>{rule.detail}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
           </div>
         </section>
       </main>

@@ -255,11 +255,9 @@ pip install -r requirements.txt
 ### Overview
 `analysislib` is the analysis pipeline for turning enriched events into:
 - grouped macro themes,
-- theme heat scores (0-100),
-- market impact summaries,
-- optional portfolio risk alerts.
+- theme heat scores (0-100).
 
-Unlike the older draft, this layer is now wired for DB sync via `sync_themes.py`, and has a single public entrypoint for other teams: `run_analysis(...)`.
+This layer is wired for DB sync via `sync_themes.py`, and has a single public entrypoint: `run_analysis(...)`.
 
 ### Current folder structure
 
@@ -274,16 +272,12 @@ backend/src/analysislib/
 |-- logic/
     |-- macro_themes.py
     |-- heat_score.py
-    |-- market_impact.py
-    |-- portfolio_analysis.py
 ```
 
 ### Entrypoint contract (`run_analysis`)
 
 Input:
 - `events: list[dict]` (required)
-- `user_id: str | None` (optional)
-- `portfolio: list[dict] | None` (optional)
 
 Minimal event fields expected:
 - `topic` (str)
@@ -295,16 +289,14 @@ Minimal event fields expected:
 
 Output:
 - `themes`
-- `market_impacts`
-- `portfolio_risk` (or `None` if no portfolio input)
-- `summary` (`events_input`, `themes_count`, `impacts_count`, `alerts_count`)
+- `summary` (`events_input`, `themes_count`)
 
 Example usage:
 
 ```python
 from backend.src.analysislib import run_analysis
 
-result = run_analysis(events=my_events, user_id="user-123", portfolio=my_portfolio)
+result = run_analysis(events=my_events)
 print(result["summary"])
 ```
 
@@ -312,8 +304,6 @@ print(result["summary"])
 
 1. Group events into themes (`logic/macro_themes.py`)
 2. Score heat per theme (`logic/heat_score.py`)
-3. Generate market impact (`logic/market_impact.py`)
-4. Optionally evaluate portfolio risk (`logic/portfolio_analysis.py`)
 
 ### DB sync and frontend seeding
 
@@ -363,10 +353,8 @@ Implemented:
 - Gemini-based event-to-theme classification with deduplication.
 - Fake-data seeding workflow for demo/testing.
 
-Still placeholder by design:
-- Rule-based theme grouping/scoring heuristics (heat_score uses simple heuristics).
-- Portfolio input is only as accurate as provided upstream portfolio data.
-- Advanced explanation/recommendation generation is not in this layer yet.
+Known limitation:
+- Theme grouping/scoring is rule-based (simple heuristics in `heat_score.py`), not ML-driven.
 
 ## Storage
 
@@ -448,18 +436,29 @@ themes.
 | theme_id | uuid | Foreign key to events |
 | created_at | timestamptz | Time row was created |
 
-### `portfolio_exposure`
+### `theme_analyses`
 
-Per-user portfolio holdings. Used to match themes to user risk.
+Cached LLM-generated narrative analysis per theme, served by
+`/api/themes/<theme_id>/analysis`. Regenerated if older than 7 days or when
+`force=true` is passed.
 
-### `risk_alerts`
+| Field | Type | Description |
+| --- | --- | --- |
+| theme_id | uuid | Primary key, foreign key to themes |
+| analysis | text | LLM-generated analysis text |
+| generated_at | timestamptz | When the analysis was generated |
 
-Generated alerts when a theme breaches a severity threshold for a user.
+### `implication_chains`
 
-### `recommendations`
+Cached LLM-generated cross-asset implication chains per theme, served by
+`/api/themes/<theme_id>/chains`. Regenerated if older than 7 days or when
+`force=true` is passed.
 
-Suggested actions with confidence score and a reference to the AI's reasoning
-in the memory store.
+| Field | Type | Description |
+| --- | --- | --- |
+| theme_id | uuid | Primary key, foreign key to themes |
+| chains | jsonb | List of implication chain objects (trigger + steps) |
+| generated_at | timestamptz | When the chains were generated |
 
 ---
 
@@ -653,7 +652,3 @@ for ingestion in unprocessed:
 
     mark_processed(ingestion["id"], event_id)
 ```
-
-## Serving and product layer
-
-## Reliability, governance, and observability
