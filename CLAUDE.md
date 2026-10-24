@@ -10,6 +10,10 @@ The point isn't to out-answer a chatbot on "what's happening right now" — it's
 
 It's a repurposed hackathon project — large parts of the original scope (chatbot, notifications, portfolio risk alerts) were hardcoded UI mockups with no backend and have been removed. Only features with a real, reachable implementation remain. When extending this project, don't reintroduce placeholder/mock UI for unbuilt features — either wire it through end to end or leave it out.
 
+**Target architecture constraint — read before adding any feature:** no user-facing request should ever trigger a live call to FRED, Alpha Vantage, GDELT, or Gemini. This site is meant to work like a news site or weather forecast: visitors only ever view pre-computed data from Supabase. All external data fetching happens on a schedule (planned: a GitHub Actions cron job), never on demand from a visitor's action. Do not add new search boxes, filters, or "fetch live data" buttons that call an external API per-request.
+
+**Current status — mid-migration, not yet matching the target above:** the Macro/Market panels (`/api/macroeconomic/*`, `/api/market/*` in `main.py`, and the corresponding search/dropdown UI in `page.tsx`) still use an older live-query-per-request model, and there's no scheduled job yet — the news pipeline only runs when manually invoked. See `TODO.md` for the concrete, phased punch list to close this gap. Known bugs blocking the real (non-fake-seeded) pipeline are also tracked there: a relative-path bug in `dataprocesslib/processors/ticker_loader.py` and an arg-count bug in `dataprocesslib/pipeline.py`'s `process_batch()`.
+
 ## Commands
 
 ### Frontend (`frontend/`)
@@ -27,9 +31,10 @@ There is no frontend test runner configured.
 
 ```bash
 python main.py                                  # run Flask API on :8000 (debug mode)
+python get_actual_events.py                      # THE real pipeline: reads unprocessed raw_ingestions, enriches (needs admin_requirements.txt), inserts events, auto-classifies
 python -m analysislib.sync_themes                # recompute + upsert theme heat scores from events table
-python -m analysislib.test                       # seed fake themes into DB for frontend demo (via run_analysis)
-python seed_test_events.py                       # insert 10 diverse macro events for classification testing
+python -m analysislib.test                       # seed FAKE themes into DB for frontend demo (via run_analysis) — bypasses the real pipeline entirely
+python seed_test_events.py                       # insert 10 diverse FAKE macro events for classification testing — also bypasses ingestion/enrichment
 python analysislib/test_connection.py            # DB connectivity smoke test
 ```
 

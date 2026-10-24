@@ -12,6 +12,7 @@ load_dotenv()
 url = os.getenv("SUPABASE_URL")
 key = os.getenv("SUPABASE_KEY")
 _supabase: Client | None = create_client(url, key) if url and key else None
+supabase = _supabase  # raw client, for scripts (test.py, test_db.py) that query tables directly
 
 
 def _require_supabase() -> Client:

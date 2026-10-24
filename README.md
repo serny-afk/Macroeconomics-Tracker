@@ -32,6 +32,10 @@
 - pgvector (semantic search / memory retrieval)
 - Supabase Storage (raw payload archive)
 
+### Automation
+
+- GitHub Actions — scheduled daily job for news ingestion and the macro/market vitals refresh, so no external API is ever called by a visitor's request (planned, see `TODO.md`)
+
 ### Deployment
 
 - Vercel

@@ -2,6 +2,8 @@
 
 This initial prototype follows a monolithic structure.
 
+> **Note on current architecture:** this document describes the code as it exists today. The target architecture (see `ABOUT.md` and `TODO.md`) removes on-demand, per-request calls to FRED/Alpha Vantage entirely in favor of a scheduled job that pre-fetches a fixed set of indicators/tickers. The `/api/macroeconomic/*` and `/api/market/*` endpoints documented below still reflect the older live-query-per-request model and are mid-migration — don't assume they'll stay in their current form.
+
 ## Setup Guide
 
 1. Add backend base url to frontend/.env.local and frontend base url to backend/.env
