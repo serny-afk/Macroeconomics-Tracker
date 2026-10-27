@@ -82,7 +82,7 @@ def _derive_region(sourcecountry: str) -> str:
 
 def _derive_asset_classes(title: str, text: str) -> list[str]:
     """Keyword match across title + text to find relevant asset classes."""
-    combined = (title or "" + " " + (text or "")).lower()
+    combined = ((title or "") + " " + (text or "")).lower()
     return [
         asset for asset, keywords in ASSET_CLASS_KEYWORDS.items()
         if any(kw in combined for kw in keywords)
@@ -164,7 +164,8 @@ def process_batch(articles: list[dict]) -> list[dict]:
             })
             continue
 
-        results.append(process_article(raw))
+        storage_path = raw.get("url") or f"local/{uuid.uuid4()}"
+        results.append(process_article(raw, storage_path))
 
     print(f"[pipeline] Processed: {len(results)} | Skipped: {len(skipped)}")
     return results, skipped

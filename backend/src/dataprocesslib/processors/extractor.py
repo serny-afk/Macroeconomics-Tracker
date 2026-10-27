@@ -3,7 +3,7 @@ import re
 
 from . import ticker_loader
 
-nlp = spacy.load("en_core_web_trf")
+nlp = spacy.load("en_core_web_sm")
 
 TICKER_SET = ticker_loader.load_tickers()
 

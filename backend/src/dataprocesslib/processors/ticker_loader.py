@@ -25,7 +25,7 @@ import pandas as pd
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
-CACHE_FILE = "ticker_cache.json"
+CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_cache.json")
 
 # Spoof a browser user-agent — Wikipedia blocks Python's default urllib agent
 HEADERS = {
@@ -88,7 +88,7 @@ def _fetch_tickers() -> set[str]:
 # ── Cache ─────────────────────────────────────────────────────────────────────
 def _save_cache(tickers: set[str]) -> None:
     json.dump(sorted(tickers), open(CACHE_FILE, "w"), indent=2)
-    print(f"[ticker_loader] Cached {len(tickers)} tickers → {CACHE_FILE}")
+    print(f"[ticker_loader] Cached {len(tickers)} tickers -> {CACHE_FILE}")
 
 
 def _load_cache() -> set[str]:

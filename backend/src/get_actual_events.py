@@ -34,8 +34,8 @@ def main():
     logger.info("Starting GDELT spider...")
     run_gdelt_spider(
         query_terms=QUERY_TERMS,
-        timespan="1day",
-        maxrecords=1,
+        timespan="7days",
+        maxrecords=5,
         output=False,
         language="english"
     )
@@ -69,13 +69,13 @@ def main():
             mark_processed(ingestion_id, event["event_id"])
             
             processed_count += 1
-            logger.info(f"✓ Processed {ingestion_id} → {event['event_id']}")
+            logger.info(f"[ok] Processed {ingestion_id} -> {event['event_id']}")
             
         except json.JSONDecodeError as e:
-            logger.error(f"✗ Invalid JSON in {storage_path}: {e}")
+            logger.error(f"[fail] Invalid JSON in {storage_path}: {e}")
             
         except Exception as e:
-            logger.error(f"✗ Failed to process {ingestion_id}: {e}")
+            logger.error(f"[fail] Failed to process {ingestion_id}: {e}")
     
     logger.info(f"Pipeline complete: {processed_count}/{len(unprocessed)} events created")
 
