@@ -81,3 +81,20 @@ CREATE TABLE public.implication_chains (
   CONSTRAINT implication_chains_pkey PRIMARY KEY (theme_id),
   CONSTRAINT implication_chains_theme_id_fkey FOREIGN KEY (theme_id) REFERENCES public.themes(theme_id)
 );
+
+-- Pre-computed snapshot of a fixed set of macro indicators (FRED) and market
+-- symbols (Alpha Vantage), refreshed by get_vitals_snapshot.py. Serves
+-- GET /api/vitals/<type> so the API never calls FRED/Alpha Vantage live.
+CREATE TABLE public.vitals (
+  key text NOT NULL,
+  type text NOT NULL CHECK (type = ANY (ARRAY['macro'::text, 'market'::text])),
+  label text NOT NULL,
+  category text,
+  latest_value double precision,
+  previous_value double precision,
+  change_percent double precision,
+  points double precision[],
+  x_labels text[],
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT vitals_pkey PRIMARY KEY (key)
+);

@@ -22,7 +22,7 @@
 
 ### NLP / AI
 
-- spaCy (`en_core_web_trf`) for entity extraction
+- spaCy (`en_core_web_sm`) for entity extraction
 - FinBERT (`ProsusAI/finbert`) for sentiment classification
 - Gemini (`gemini-3.1-flash-lite-preview`) for event-to-theme classification and theme analysis/implication-chain generation
 

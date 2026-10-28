@@ -394,3 +394,48 @@ def upsert_implication_chains(theme_id: str, chains: list) -> JsonDict:
         .execute()
         .data[0],
     )
+
+
+# ── Vitals (pre-computed macro/market snapshot) ──────────────────────────
+
+def get_vitals(vital_type: str | None = None) -> list[JsonDict]:
+    """Return the latest vitals snapshot rows, optionally filtered by type ('macro'/'market')."""
+    query = _require_supabase().table("vitals").select("*")
+    if vital_type:
+        query = query.eq("type", vital_type)
+    return cast(list[JsonDict], query.order("key").execute().data)
+
+
+def upsert_vital(
+    key: str,
+    vital_type: str,
+    label: str,
+    category: str | None,
+    latest_value: float | None,
+    previous_value: float | None,
+    change_percent: float | None,
+    points: list[float],
+    x_labels: list[str],
+) -> JsonDict:
+    """Insert or update a single vitals row (one macro indicator or market symbol)."""
+    return cast(
+        JsonDict,
+        _require_supabase().table("vitals")
+        .upsert(
+            {
+                "key": key,
+                "type": vital_type,
+                "label": label,
+                "category": category,
+                "latest_value": latest_value,
+                "previous_value": previous_value,
+                "change_percent": change_percent,
+                "points": points,
+                "x_labels": x_labels,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+            on_conflict="key",
+        )
+        .execute()
+        .data[0],
+    )

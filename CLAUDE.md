@@ -43,7 +43,7 @@ There is no pytest suite — `test.py`, `test_connection.py`, `test_db.py` are s
 Three separate requirement files, by how much you need to run:
 - `backend/src/requirements.txt` — what's actually deployed (Flask API only: Supabase, Gemini, FRED/Alpha Vantage HTTP calls). No NLP deps.
 - `requirements.txt` (repo root) — adds Scrapy/web-crawling deps for running the ingestion spider.
-- `admin_requirements.txt` — adds spaCy (`en_core_web_trf`), FinBERT/transformers, torch — needed only to run the enrichment pipeline (`dataprocesslib/`) locally.
+- `admin_requirements.txt` — adds spaCy (`en_core_web_sm`), FinBERT/transformers, torch — needed only to run the enrichment pipeline (`dataprocesslib/`) locally.
 
 The enrichment pipeline is intentionally never deployed with the API — it's meant to be run offline/batch, with results pushed into Supabase.
 

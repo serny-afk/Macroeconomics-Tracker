@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Generated caches
+backend/src/dataprocesslib/processors/ticker_cache.json
+
 # Distribution / packaging
 .Python
 build/
@@ -117,3 +120,5 @@ poetry.lock
 .DS_Store
 Thumbs.db
 desktop.ini
+
+TODO.md

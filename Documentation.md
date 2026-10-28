@@ -163,7 +163,7 @@ Articles with `fetch_error` are skipped and written to `skipped.json`. Articles 
 Extracts tickers and countries from article text.
 
 - **Tickers** — regex match (`[A-Z]{3,5}`) against a reference set loaded from `ticker_loader.py`. Two-letter tickers on a whitelist (`GE`, `GS`, `MS`, `BA` etc.) are also included.
-- **Countries** — spaCy `en_core_web_trf` GPE entity label, filtered against a known country list to exclude cities, regions, and industrial sites.
+- **Countries** — spaCy `en_core_web_sm` GPE entity label, filtered against a known country list to exclude cities, regions, and industrial sites. (Originally `en_core_web_trf`; switched to the smaller non-transformer model because `en_core_web_trf`'s dependency chain — `curated-tokenizers` — has no prebuilt wheel for newer Python versions and fails to compile from source on Windows. Trade-off: somewhat lower NER accuracy for a much lighter, more portable dependency footprint.)
 
 ```python
 from processors.extractor import extract_entities
