@@ -62,10 +62,11 @@ jobs:
         run: pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
 
       - name: Install remaining dependencies
-        # admin_requirements.txt also pins torch; strip that line so pip doesn't
+        # admin_requirements.txt lives at the repo root, not backend/src (this step's
+        # working-directory). It also pins torch; strip that line so pip doesn't
         # pull the default CUDA wheel (~2.5GB) over the CPU one installed above.
         run: |
-          grep -v '^torch==' admin_requirements.txt > /tmp/admin_requirements.no-torch.txt
+          grep -v '^torch==' ../../admin_requirements.txt > /tmp/admin_requirements.no-torch.txt
           pip install -r /tmp/admin_requirements.no-torch.txt
 
       - name: Run news pipeline
