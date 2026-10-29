@@ -46,6 +46,7 @@ CREATE TABLE public.raw_ingestions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   storage_path text NOT NULL,
   source text,
+  url text,
   ingested_at timestamp with time zone DEFAULT now(),
   processed boolean DEFAULT false,
   processed_at timestamp with time zone,
@@ -53,6 +54,7 @@ CREATE TABLE public.raw_ingestions (
   CONSTRAINT raw_ingestions_pkey PRIMARY KEY (id),
   CONSTRAINT raw_ingestions_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(event_id)
 );
+CREATE INDEX IF NOT EXISTS raw_ingestions_url_idx ON public.raw_ingestions (url);
 
 CREATE TABLE public.memory (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

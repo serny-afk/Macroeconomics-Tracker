@@ -9,6 +9,11 @@ import styles from "./page.module.css";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_BASE_URL ?? "";
 
+type SentimentBreakdown = {
+  counts: Record<"risk-on" | "risk-off" | "neutral", number>;
+  percent: Record<"risk-on" | "risk-off" | "neutral", number>;
+};
+
 type ThemeData = {
   theme_id: string;
   title: string;
@@ -19,6 +24,7 @@ type ThemeData = {
   asset_classes: string[];
   first_seen_at: string | null;
   last_seen_at: string | null;
+  sentiment_breakdown: SentimentBreakdown | null;
 };
 
 type TimelineEvent = {
@@ -67,6 +73,12 @@ function sentimentToneClass(sentiment: string | null) {
   if (sentiment === "risk-off") return styles.sentimentRiskOff;
   return styles.sentimentNeutral;
 }
+
+const SENTIMENT_COLORS: Record<"risk-on" | "risk-off" | "neutral", string> = {
+  "risk-on": "#4ade80",
+  "risk-off": "#f87171",
+  neutral: "#94a3b8",
+};
 
 function heatBadgeStyle(score: number): CSSProperties {
   const clamped = Math.max(0, Math.min(100, score));
@@ -382,6 +394,40 @@ export default function TimelinePage() {
                   </span>
                 ) : null}
               </div>
+
+              {themeData.sentiment_breakdown &&
+              themeData.sentiment_breakdown.counts["risk-on"] +
+                themeData.sentiment_breakdown.counts["risk-off"] +
+                themeData.sentiment_breakdown.counts["neutral"] >
+                0 ? (
+                <div className={styles.sentimentBreakdown}>
+                  <div className={styles.sentimentBar}>
+                    {(["risk-on", "risk-off", "neutral"] as const).map((label) =>
+                      themeData.sentiment_breakdown!.percent[label] > 0 ? (
+                        <div
+                          key={label}
+                          className={styles.sentimentBarSegment}
+                          style={{
+                            width: `${themeData.sentiment_breakdown!.percent[label]}%`,
+                            backgroundColor: SENTIMENT_COLORS[label],
+                          }}
+                        />
+                      ) : null
+                    )}
+                  </div>
+                  <div className={styles.sentimentLegend}>
+                    {(["risk-on", "risk-off", "neutral"] as const).map((label) => (
+                      <span key={label} className={styles.sentimentLegendItem}>
+                        <span
+                          className={styles.sentimentLegendDot}
+                          style={{ backgroundColor: SENTIMENT_COLORS[label] }}
+                        />
+                        {label} {themeData.sentiment_breakdown!.percent[label]}%
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             {/* AI Analysis */}

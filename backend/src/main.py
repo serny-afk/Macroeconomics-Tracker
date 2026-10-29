@@ -24,35 +24,6 @@ CORS(app, origins=FRONT_END_URL)
 
 ########################## Helper functions ##########################
 
-# Placeholder news scroller articles
-EXAMPLE_NEWS_ARTICLES = [
-    {
-        "id": "us-cpi-cools",
-        "title": "US Core CPI Cools for a Second Month",
-        "description": "Core inflation eased slightly, reinforcing expectations for a gradual policy pivot.",
-    },
-    {
-        "id": "fed-minutes",
-        "title": "Fed Minutes Signal Data-Dependent Approach",
-        "description": "Officials flagged resilient services inflation and reiterated a cautious easing path.",
-    },
-    {
-        "id": "oil-supply",
-        "title": "Oil Gains on Fresh Supply Concerns",
-        "description": "Crude prices moved higher after renewed disruptions increased near-term supply risk.",
-    },
-    {
-        "id": "tech-guidance",
-        "title": "Mega-Cap Tech Guidance Mixed into Q2",
-        "description": "Cloud and AI capex remained strong, while margin outlooks diverged by company.",
-    },
-    {
-        "id": "jobs-surprise",
-        "title": "Payrolls Beat Forecasts, Wage Growth Stable",
-        "description": "Labor data stayed firm, supporting a soft-landing narrative despite rate uncertainty.",
-    },
-]
-
 
 def _json_error(message: str, status_code: int = 400) -> Response:
     response = jsonify({"error": message})
@@ -167,6 +138,20 @@ def get_theme_timeline(theme_id: str) -> Response:
 
     events.sort(key=lambda e: e.get("published_at", ""), reverse=True)
 
+    sentiment_counts = {"risk-on": 0, "risk-off": 0, "neutral": 0}
+    for ev in events:
+        sentiment = ev.get("sentiment")
+        if sentiment in sentiment_counts:
+            sentiment_counts[sentiment] += 1
+    total_scored = sum(sentiment_counts.values())
+    sentiment_breakdown = {
+        "counts": sentiment_counts,
+        "percent": {
+            label: round(count / total_scored * 100, 1) if total_scored else 0.0
+            for label, count in sentiment_counts.items()
+        },
+    }
+
     return jsonify(
         {
             "theme": {
@@ -179,6 +164,7 @@ def get_theme_timeline(theme_id: str) -> Response:
                 "asset_classes": theme.get("asset_classes") or [],
                 "first_seen_at": theme.get("first_seen_at"),
                 "last_seen_at": theme.get("last_seen_at"),
+                "sentiment_breakdown": sentiment_breakdown,
             },
             "events": [
                 {
@@ -530,7 +516,6 @@ def get_event_article(event_id: str) -> Response:
 def get_news() -> Response:
     """
     Return recent news articles ranked by recency-weighted importance.
-    Falls back to placeholders if DB events are unavailable.
     """
     limit_raw = request.args.get("limit")
     try:
@@ -568,9 +553,13 @@ def get_news() -> Response:
 
         weighted_score = 0.7 * recency_score + 0.3 * importance_score
 
-        title = event.get("title") or event.get("topic") or "Market Update"
+        # Events only store a short headline-length `content` string, no separate title field.
         content = str(event.get("content") or "").strip()
-        description = content[:220] if content else "No summary available."
+        title = content[:140] or event.get("topic") or "Market Update"
+
+        source = str(event.get("source") or "").strip()
+        sentiment = str(event.get("sentiment") or "").replace("-", " ").strip()
+        description = " — ".join(part for part in (source, sentiment.title()) if part) or "No summary available."
 
         ranked.append(
             {
@@ -580,9 +569,6 @@ def get_news() -> Response:
                 "score": round(weighted_score, 4),
             }
         )
-
-    if not ranked:
-        return jsonify({"articles": EXAMPLE_NEWS_ARTICLES[: min(limit, len(EXAMPLE_NEWS_ARTICLES))]})
 
     ranked.sort(key=lambda item: item["score"], reverse=True)
     return jsonify({"articles": ranked[:limit]})

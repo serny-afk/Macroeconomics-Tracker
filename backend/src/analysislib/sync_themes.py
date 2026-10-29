@@ -1,44 +1,31 @@
 # backend/analysislib/sync_themes.py
-from datetime import datetime, timedelta, timezone
-
-from databaselib.db import get_events, get_active_themes, insert_theme, update_theme
-from .logic.macro_themes import group_events_into_themes
+from databaselib.db import get_active_themes, get_events_for_theme, update_theme
 from .logic.heat_score import calculate_theme_heat
 
 
-def sync_theme_heat(days: int = 7) -> int:
-    events = get_events(days=days)
-    themes = calculate_theme_heat(group_events_into_themes(events))
+def sync_theme_heat() -> int:
+    """
+    Recompute heat scores for themes created via Gemini classification
+    (analysislib.classify_events). Does not create or group themes itself —
+    that grouping is owned entirely by the closed-list classification step,
+    to avoid two independent paths producing duplicate theme rows.
+    """
+    updated = 0
 
-    existing = get_active_themes()
-    by_key = {(t.get("title"), t.get("region") or ""): t for t in existing}
+    for theme in get_active_themes():
+        linked = get_events_for_theme(theme["theme_id"])
+        events = [row["events"] for row in linked if row.get("events")]
+        if not events:
+            continue
 
-    upserts = 0
-    now_iso = datetime.now(timezone.utc).isoformat()
+        scored = calculate_theme_heat([{"events": events}])[0]
+        update_theme(theme["theme_id"], {"heat_score": scored["heat_score"]})
+        updated += 1
 
-    for t in themes:
-        key = (t["title"], t.get("region") or "")
-        payload = {
-            "title": t["title"],
-            "description": t.get("description", ""),
-            "status": "active",
-            "heat_score": t["heat_score"],
-            "asset_classes": t.get("asset_classes", []),
-            "region": t.get("region", ""),
-            "first_seen_at": t.get("first_seen_at", now_iso),
-            "last_seen_at": t.get("last_seen_at", now_iso),
-        }
-
-        if key in by_key:
-            update_theme(by_key[key]["theme_id"], payload)
-        else:
-            insert_theme(payload)
-        upserts += 1
-
-    return upserts
+    return updated
 
 
 if __name__ == "__main__":
-    n = sync_theme_heat(days=7)
-    print(f"Synced {n} themes")
+    n = sync_theme_heat()
+    print(f"Synced heat scores for {n} themes")
 

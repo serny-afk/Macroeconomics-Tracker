@@ -252,14 +252,30 @@ def insert_storage(storage_path: str, raw_payload: str) -> str:
     return storage_path
 
 
-def ingest_raw_article(raw_payload: str, source: str) -> None:
+def ingest_raw_article(raw_payload: str, source: str, article_url: str | None = None) -> bool:
     """
-    Stores raw articles in database marked as unprocess by default.
+    Stores raw articles in database marked as unprocessed by default.
+    Skips storage if article_url was already ingested in a previous run.
 
     Args:
         raw_payload: Raw HTML of news articles
         source: news website source domain
+        article_url: canonical article URL, used to dedupe repeat GDELT crawls
+
+    Returns:
+        True if the article was stored, False if skipped as a duplicate.
     """
+    if article_url:
+        existing = (
+            _require_supabase().table("raw_ingestions")
+            .select("id")
+            .eq("url", article_url)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return False
+
     storage_path = f"{source}/{str(uuid.uuid4())}.json"
 
     # upload data to raw payloads
@@ -274,8 +290,11 @@ def ingest_raw_article(raw_payload: str, source: str) -> None:
         {
             "storage_path": storage_path,
             "source": source,
+            "url": article_url,
         }
     ).execute().data[0]
+
+    return True
 
 
 def get_raw_article(storage_path: str) -> str:

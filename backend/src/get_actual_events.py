@@ -35,7 +35,7 @@ def main():
     run_gdelt_spider(
         query_terms=QUERY_TERMS,
         timespan="7days",
-        maxrecords=5,
+        maxrecords=30,
         output=False,
         language="english"
     )
