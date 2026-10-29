@@ -595,6 +595,10 @@ def classify_events():
     Query params:
         days – look-back window (default 30)
     """
+    pipeline_secret = os.getenv("PIPELINE_SECRET")
+    if not pipeline_secret or request.headers.get("X-Pipeline-Secret") != pipeline_secret:
+        return _json_error("Unauthorized", 401)
+
     try:
         days = int(request.args.get("days", "30"))
     except (ValueError, TypeError):
