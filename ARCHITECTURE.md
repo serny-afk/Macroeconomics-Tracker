@@ -2,8 +2,6 @@
 
 DMacro works like a news site or a weather forecast: visitors only ever **view** pre-computed data. There is no search box, no filters, no way to trigger fresh data on demand. Everything a visitor sees is populated ahead of time by a scheduled job — never by a visitor's own request.
 
-> **Status:** this document describes the target design. Items not yet built are marked `(planned)` — see `TODO.md` for the live, phased punch list.
-
 ## The one governing rule
 
 No user-facing request ever triggers a live call to FRED, Alpha Vantage, GDELT, or Gemini. All external data fetching happens inside one scheduled job, server-side. The live web app only ever reads from Supabase.
@@ -12,8 +10,8 @@ No user-facing request ever triggers a live call to FRED, Alpha Vantage, GDELT, 
 
 ```
                          ┌─────────────────────────────┐
-                         │   Scheduled job (daily)      │
-                         │   GitHub Actions cron (planned) │
+                         │  GitHub Actions daily cron    │
+                         │  (daily-pipeline.yml, 07:00 UTC)│
                          └───────────────┬─────────────┘
                                          │
                 ┌────────────────────────┼────────────────────────┐
@@ -24,14 +22,14 @@ No user-facing request ever triggers a live call to FRED, Alpha Vantage, GDELT, 
         └───────┬────────┘                               └────────┬───────┘
                 │                                                  │
                 ▼                                                  ▼
-          writes to Supabase (events, themes, event_theme_map)     writes to Supabase (vitals snapshot, planned)
+          writes to Supabase (events, themes, event_theme_map)     writes to Supabase (vitals)
                 │                                                  │
                 └────────────────────────┬─────────────────────────┘
                                          │
                                  ┌───────▼────────┐
                                  │  Flask API       │   reads only, never calls
-                                 │  (main.py)       │   external APIs per-request
-                                 └───────┬────────┘
+                                 │  (main.py)       │   FRED/Alpha Vantage/GDELT
+                                 └───────┬────────┘   per request
                                          │
                                  ┌───────▼────────┐
                                  │  Next.js frontend│   pure display, no
@@ -44,45 +42,43 @@ No user-facing request ever triggers a live call to FRED, Alpha Vantage, GDELT, 
 The differentiator: turns unstructured news text into structured, deduplicated, persistent "themes" instead of a feed of one-off headlines.
 
 1. **Discovery + scraping** — GDELT indexes candidate article URLs; a Scrapy spider (`webcrawlerlib/spiders/gdelt_spider.py`) visits each and scrapes the full text.
-2. **Raw storage** — scraped articles are uploaded to Supabase Storage and tracked in `raw_ingestions` (marked unprocessed).
+2. **Raw storage** — scraped articles are uploaded to Supabase Storage and tracked in `raw_ingestions` (marked unprocessed). Articles are deduped by URL, so repeat crawls of the same article are skipped.
 3. **Enrichment** (`dataprocesslib/pipeline.py`) — for each unprocessed article:
    - spaCy (`en_core_web_sm`) extracts entities: tickers and countries mentioned
    - FinBERT (PyTorch) classifies sentiment: risk-on / risk-off / neutral
    - A weighted formula scores importance (source credibility, entity count, recency)
 4. **Persistence** — the enriched event is inserted into `events`.
-5. **LLM classification** (`analysislib/classify_events.py`) — Gemini classifies the event into an **existing** theme from a closed list, or creates a new one only if nothing fits. This prevents synonym fragmentation (e.g. "US Inflation" vs "American Inflation Pressure").
-6. **Heat scoring** (`analysislib/sync_themes.py`) — recomputes each theme's heat score (avg importance × avg recency × event-volume saturation, 0–100).
-7. **Sentiment breakdown** *(planned)* — per theme, the % of linked events that are risk-on / risk-off / neutral, surfaced on the theme's page so FinBERT's output is a visible feature, not just a per-event tag.
+5. **LLM classification** (`analysislib/classify_events.py`) — Gemini classifies the event into an **existing** theme from a closed list, or creates a new one only if nothing fits. This is the only place themes get created or grouped, which prevents synonym fragmentation (e.g. "US Inflation" vs "American Inflation Pressure").
+6. **Heat scoring** (`analysislib/sync_themes.py`) — for each theme produced in step 5, recomputes its heat score (avg importance × avg recency × event-volume saturation, 0–100) from its linked events.
+7. **Sentiment breakdown** — per theme, the % of linked events that are risk-on / risk-off / neutral, surfaced on the theme's page.
 
 Surfaces as: the News Feed, the Trending Themes heat grid, and the Theme Tracker (timeline + LLM-generated narrative analysis + cross-asset implication chains + sentiment breakdown).
 
-## Lane 2 — Vitals (fixed) *(planned — currently still live-query-per-request, see TODO.md)*
+## Lane 2 — Vitals (fixed)
 
 A small, hardcoded set of indicators, refreshed once a day — always the same metrics, just updated values, not a search tool:
 
-- **Macro (FRED):** Real GDP, Unemployment Rate, Headline CPI, Fed Funds Rate, 10Y Treasury Yield
-- **Market (Alpha Vantage):** SPY, QQQ, DIA
+- **Macro (FRED):** Real GDP, Headline CPI, Unemployment Rate, Fed Funds Rate, 10Y Treasury Yield, 10Y-2Y Curve Spread, High-Yield Credit Spread, WTI Crude Oil
+- **Market (Alpha Vantage):** SPY, QQQ, DIA, IWM, TLT, GLD, USO, UUP
 
-The scheduled job fetches these and stores the latest snapshot in Supabase. The Flask API reads that snapshot — it does not call FRED/Alpha Vantage at request time.
+`get_vitals_snapshot.py` fetches these and upserts the latest snapshot into the `vitals` table. The Flask API (`GET /api/vitals/<macro|market>`) reads that snapshot — it never calls FRED/Alpha Vantage at request time.
 
-## Automation *(planned)*
+## Automation
 
-One GitHub Actions scheduled (cron) workflow, running daily, independent of any developer's machine:
-- Runs the news pipeline (scrape → enrich → classify)
-- Runs the vitals fetch script
-- Writes everything to Supabase
-- Caches the spaCy/FinBERT model downloads between runs (`actions/cache`) so it isn't re-downloading every run
+One GitHub Actions scheduled workflow (`.github/workflows/daily-pipeline.yml`), running daily at 07:00 UTC, independent of any developer's machine:
+- `vitals-snapshot` job runs `get_vitals_snapshot.py`
+- `news-pipeline` job runs the news pipeline (scrape → enrich → classify) then `sync_themes.py`
+- Both write to Supabase using repo secrets for API keys
 
-**Keeping the runner lean:** the enrichment stack is inference-only on a CPU runner, so install the **CPU-only torch wheel** (`torch==2.10.0+cpu`, ~200 MB) — not the default CUDA build (~2.5 GB). Real recurring footprint is ~650 MB: CPU torch (~200 MB) + FinBERT weights (~440 MB) + `en_core_web_sm` (~12 MB). Cache the pip wheel cache **and** the HuggingFace model dir (`~/.cache/huggingface`) so steady-state runs restore in seconds and download nothing. The pipeline must run on **Python 3.12** (3.14 breaks spaCy's import — see TODO.md), so pin the runner's `actions/setup-python` to 3.12. If even that feels heavy, the cron frequency is a free knob — weekly is plenty for macro themes.
+The enrichment stack is inference-only on a CPU runner, so the workflow installs the **CPU-only torch wheel** (`torch==2.10.0+cpu`) rather than the default CUDA build. It caches the pip wheel cache and the HuggingFace model dir (`~/.cache/huggingface`) so steady-state runs restore FinBERT's weights in seconds instead of re-downloading. The pipeline runs on **Python 3.12** (3.14 breaks spaCy's import).
 
 ## Serving
 
-- **Flask API** (`backend/src/main.py`, deployed to Vercel) — reads from Supabase; the only external calls it ever makes are lazy, cached (7-day staleness window) Gemini calls for the two on-demand LLM features: theme analysis and cross-asset implication chains. Never touches FRED, Alpha Vantage, GDELT, spaCy, or FinBERT at request time.
-- **Next.js frontend** (`frontend/app/`) — pure display. No search boxes, no on-demand query UI.
+- **Flask API** (`backend/src/main.py`, deployed to Vercel at `dmacro-backend.vercel.app`) — reads from Supabase; the only external calls it ever makes are lazy, cached (7-day staleness window) Gemini calls for two on-demand LLM features: theme analysis and cross-asset implication chains. Never touches FRED, Alpha Vantage, GDELT, spaCy, or FinBERT at request time. `/api/classify-events` (manual backfill trigger) is gated behind a shared-secret header.
+- **Next.js frontend** (`frontend/app/`, deployed to Vercel at `dmacro-frontend.vercel.app`) — pure display. No search boxes, no on-demand query UI.
 
 ## Related docs
 
-- `TODO.md` — live, phased punch list (what's built vs not, in order)
 - `CLAUDE.md` — guidance for AI coding assistants working on this repo, including the architecture constraint above
 - `Documentation.md` — detailed technical reference (table schemas, function signatures, API contracts)
 - `ABOUT.md` — project pitch/positioning

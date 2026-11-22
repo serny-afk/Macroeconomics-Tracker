@@ -1,8 +1,6 @@
 # Documentation
 
-This initial prototype follows a monolithic structure.
-
-> **Note on current architecture:** this document describes the code as it exists today. The target architecture (see `ABOUT.md` and `TODO.md`) removes on-demand, per-request calls to FRED/Alpha Vantage entirely in favor of a scheduled job that pre-fetches a fixed set of indicators/tickers. The `/api/macroeconomic/*` and `/api/market/*` endpoints documented below still reflect the older live-query-per-request model and are mid-migration — don't assume they'll stay in their current form.
+This document describes the code as it exists today.
 
 ## Setup Guide
 
@@ -20,23 +18,14 @@ npm run dev
 ## Source ingestion
 
 Data is taken from publicly available APIs and scraped from reputable
-financial news websites. Future work can include premium APIs such as BLPAPI
-(Bloomberg API). For demonstration purposes, only free sources are used.
+financial news websites.
 
 ### APIs
 
-Federal Reserve Economic Data (FRED)
-
-- US macro and regional economic time series
-- Annual, quarterly, monthly, weekly and daily
+Federal Reserve Economic Data (FRED) and Alpha Vantage, both called only from
+`get_vitals_snapshot.py` (the scheduled job), never from a live request:
 
 ```python
-# Return all available macroeconomic indicator categories.
-def list_fred_categories() -> List[str]:
-
-# Return all macroeconomic indicators for category.
-def list_fred_indicators(category: str) -> Dict[str, str]:
-
 # Fetch data for a macroeconomic indicator from FRED.
 def get_fred_indicator_data(
     indicator_name: str,
@@ -47,14 +36,8 @@ def get_fred_indicator_data(
     limit: Optional[int] = None,
 ) -> Dict:
 
-# Fetch data for all macroeconomic indicators in a category from FRED.
-def get_fred_category_data(
-    category: str,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    sort_order: str = "asc",
-    limit: Optional[int] = None,
-) -> Dict[str, Dict]:
+# Fetch daily close prices for a ticker from Alpha Vantage.
+def get_alpha_vantage_time_series_daily(symbol: str) -> Dict:
 ```
 
 GDELT-based webcrawler
@@ -252,75 +235,27 @@ pip install -r requirements.txt
 - **FinBERT** was trained on short financial headlines — sentiment reliability degrades on long-form articles (>512 tokens are truncated)
 - **`published_at`** is null for a significant portion of ingested articles, defaulting recency score to 0.5
 - **`topic`** field is populated by the Gemini classifier at insertion time (see *Event-to-theme classification* below)
+
 ## Analysis layer
 
 ### Overview
-`analysislib` is the analysis pipeline for turning enriched events into:
-- grouped macro themes,
-- theme heat scores (0-100).
-
-This layer is wired for DB sync via `sync_themes.py`, and has a single public entrypoint: `run_analysis(...)`.
-
-### Current folder structure
+`analysislib` turns enriched events into grouped, scored macro themes. Grouping and heat scoring are two separate steps, owned by two separate modules:
 
 ```text
 backend/src/analysislib/
-|-- __init__.py              
-|-- run_analysis.py          # entrypoint
-|-- classify_events.py       # Gemini-based event-to-theme classification
-|-- sync_themes.py           # recompute + upsert theme heat into DB
+|-- __init__.py
+|-- classify_events.py       # Gemini-based event-to-theme classification (grouping)
+|-- sync_themes.py           # recompute + upsert theme heat into DB (scoring)
+|-- run_analysis.py          # fake-data entrypoint, used only by test.py
 |-- test.py                  # fake-data seed script for frontend testing
 |-- test_connection.py       # DB connectivity smoke test
 |-- logic/
-    |-- macro_themes.py
     |-- heat_score.py
-```
-
-### Entrypoint contract (`run_analysis`)
-
-Input:
-- `events: list[dict]` (required)
-
-Minimal event fields expected:
-- `topic` (str)
-- `asset_classes` (list[str])
-- `importance_score` (number)
-- `sentiment` (`risk-on` | `risk-off` | `neutral`)
-- `published_at` (ISO datetime string)
-- `region` (optional)
-
-Output:
-- `themes`
-- `summary` (`events_input`, `themes_count`)
-
-Example usage:
-
-```python
-from backend.src.analysislib import run_analysis
-
-result = run_analysis(events=my_events)
-print(result["summary"])
-```
-
-### Pipeline flow
-
-1. Group events into themes (`logic/macro_themes.py`)
-2. Score heat per theme (`logic/heat_score.py`)
-
-### DB sync and frontend seeding
-
-- `sync_themes.py` is the production-facing bridge to store active themes and heat scores in the `themes` table.
-- `test.py` seeds fake data through `run_analysis(...)` and upserts into `themes` for frontend testing.
-
-Run seed script:
-
-```bash
-python -m backend.src.analysislib.test
 ```
 
 ### Event-to-theme classification (`classify_events.py`)
 
-Uses **Gemini 2.0 Flash** to classify each event into an existing theme or create a new one.
+Uses Gemini to classify each event into an existing theme or create a new one.
 
 **Closed-list classification** — the LLM always picks from the current theme list in the database, preventing synonym fragmentation (e.g. "US Inflation" vs "American Inflation Pressure"). A new theme is only created when no existing theme fits.
 
@@ -336,9 +271,9 @@ classify_and_link_event(event_dict) -> list[str]  # returns linked theme_ids
 backfill_events(days=30) -> {"total": int, "linked": int, "new_themes": int, "skipped": int, "errors": int}
 ```
 
-**Backfill endpoint:**
+**Backfill endpoint** (requires the `X-Pipeline-Secret` header to match the `PIPELINE_SECRET` env var):
 ```bash
-curl -X POST http://localhost:8000/api/classify-events?days=30
+curl -X POST -H "X-Pipeline-Secret: $PIPELINE_SECRET" "http://localhost:8000/api/classify-events?days=30"
 ```
 
 **Test with fake data:**
@@ -347,16 +282,13 @@ cd backend/src
 python seed_test_events.py  # inserts 10 diverse macro events
 ```
 
-### MVP status (analysis scope)
+### Heat scoring (`sync_themes.py`)
 
-Implemented:
-- End-to-end analysis flow behind one entrypoint.
-- Theme heat retrieval path for frontend (`/api/themes/hottest`).
-- Gemini-based event-to-theme classification with deduplication.
-- Fake-data seeding workflow for demo/testing.
+Recomputes heat scores for themes already created by `classify_events.py` — it does not group or create themes itself, so there's only one place theme membership is decided. For each active theme, it pulls the theme's linked events and scores heat (`logic/heat_score.py`: avg importance × avg recency × event-volume saturation, 0–100), then upserts the score.
 
-Known limitation:
-- Theme grouping/scoring is rule-based (simple heuristics in `heat_score.py`), not ML-driven.
+```bash
+python -m analysislib.sync_themes
+```
 
 ## Storage
 
@@ -369,7 +301,7 @@ purpose:
 | --- | --- | --- |
 | Raw store | Supabase Storage | Immutable original payloads |
 | Processed store | Supabase Postgres | Cleaned, query-ready structured data |
-| Memory store | Supabase pgvector | Semantic retrieval over unstructured text |
+| Memory store | Supabase pgvector | Present in schema, not read or written by any current feature |
 
 ---
 
@@ -421,6 +353,7 @@ Info on articles that have been ingested to storage. Contains both processed and
 | id | uuid | Primary key |
 | storage_path | text | Storage path of article in Supabase Storage |
 | source | text | Source of article |
+| url | text | Canonical article URL, indexed and used to skip re-ingesting repeat GDELT crawls of the same article |
 | ingested_at | timestamptz | When article was ingested |
 | processed | bool | Whether article is processed or not |
 | processed_at | timestamptz | When article was processed |
@@ -462,6 +395,23 @@ Cached LLM-generated cross-asset implication chains per theme, served by
 | chains | jsonb | List of implication chain objects (trigger + steps) |
 | generated_at | timestamptz | When the chains were generated |
 
+### `vitals`
+
+Pre-computed snapshot of a fixed set of FRED indicators and Alpha Vantage symbols, refreshed daily by `get_vitals_snapshot.py`. Served by `GET /api/vitals/<macro|market>` so the API never calls FRED/Alpha Vantage live.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| key | text | Primary key, e.g. `real_gdp`, `SPY` |
+| type | text | `macro` or `market` |
+| label | text | Display name, e.g. "Real GDP" |
+| category | text | e.g. inflation, labor, yield_curve |
+| latest_value | float | Most recent value |
+| previous_value | float | Prior value, used to compute change_percent |
+| change_percent | float | % change from previous to latest |
+| points | float[] | Up to 60 historical points for the sparkline |
+| x_labels | text[] | Date labels matching `points` |
+| updated_at | timestamptz | When the row was last refreshed |
+
 ---
 
 ## Raw Store
@@ -482,40 +432,7 @@ memory.metadata.event_id -> events.raw_payload_ref -> Supabase Storage
 
 ## Memory Store
 
-The memory store enables semantic retrieval - finding relevant past context by
-meaning, not keywords.
-
-### What gets stored
-
-| content_type | When | Example |
-| --- | --- | --- |
-| article_chunk | After enrichment | Chunked article text (~500 words) |
-| summary | After analysis | AI-generated theme or event summary |
-| recommendation_rationale | After recommendation generated | AI reasoning |
-| timeline_note | During theme lifecycle | Notes on theme evolution |
-
-### How retrieval works
-
-```text
-User query
-    ->
-embed_query(query)          <- uses RETRIEVAL_QUERY task type
-    ->
-match_memory(embedding)     <- nearest-neighbor search in pgvector
-    ->
-top-k results ranked by cosine similarity
-    ->
-filter by metadata (date, region, content_type)
-```
-
-### Task types
-
-Always use the correct task type when embedding:
-
-- `RETRIEVAL_DOCUMENT` - when inserting into memory
-- `RETRIEVAL_QUERY` - when searching memory
-
-Using mismatched types degrades retrieval quality.
+The `memory` table (pgvector) and its `insert_memory`/`search_memory` functions in `db.py` exist but are not called by any current feature — no code path writes to or reads from this table.
 
 ## Storage API
 
@@ -568,23 +485,11 @@ get_event_theme_links(event_id: str) -> list[str]
 get_unlinked_events(days: int = 7) -> list[JsonDict]
 ```
 
-### Memory Store
-
-```python
-# Insert into memory store
-insert_memory(content: str, embedding: list[float], content_type: str, metadata: JsonDict
-) -> JsonDict
-
-# Search from memory store (top-k)
-search_memory(
-    embedding: list[float], top_k: int = 5, content_type: str | None = None
-) -> list[JsonDict]
-```
-
 ### Storage
 ```python
-# Ingest raw article to storage
-ingest_raw_article(raw_payload: str, source: str) -> JsonDict
+# Ingest raw article to storage. article_url is used to dedupe repeat
+# crawls — returns False (and skips storage) if already ingested.
+ingest_raw_article(raw_payload: str, source: str, article_url: str | None = None) -> bool
 
 # Get all unprocessed articles and returns rows from raw_ingestions table
 # Example usage below
@@ -596,6 +501,22 @@ mark_processed(ingestion_id: str, event_id: str) -> None
 # Get article from storage
 get_full_article(event_id: str) -> JsonDict | None
 ```
+
+## API (Flask, `backend/src/main.py`)
+
+All read endpoints query Supabase only. `/api/themes/<id>/analysis` and `/api/themes/<id>/chains` are the only endpoints that call an external API (Gemini) at request time, and only lazily — the result is cached in `theme_analyses`/`implication_chains` and reused for 7 days unless `force=true`.
+
+| Method | Path | Returns |
+| --- | --- | --- |
+| GET | `/api/vitals/<macro\|market>` | Pre-computed vitals snapshot |
+| GET | `/api/themes/hottest?limit=9` | Top active themes by heat score |
+| GET | `/api/themes` | All active themes (id, title, heat score) |
+| GET | `/api/themes/<theme_id>/timeline` | Theme metadata + sentiment breakdown + linked events, newest first |
+| GET | `/api/themes/<theme_id>/analysis?force=` | Gemini-generated narrative analysis, cached 7 days |
+| GET | `/api/themes/<theme_id>/chains?force=` | Gemini-generated cross-asset implication chains, cached 7 days |
+| GET | `/api/events/<event_id>/article` | Full article content for an event, from Supabase Storage |
+| GET | `/api/news?limit=8` | Recent events ranked by a 0.7×recency + 0.3×importance score |
+| POST | `/api/classify-events?days=30` | Manually trigger the Gemini classification backfill; requires an `X-Pipeline-Secret` header matching the `PIPELINE_SECRET` env var |
 
 ## Example Usage
 
@@ -617,9 +538,9 @@ raw_payload = json.dumps(
     }
 )
 
-# ingests article to storage
-# also adds a row to raw_ingestions
-ingest = ingest_raw_article(raw_payload, source)
+# ingests article to storage and adds a row to raw_ingestions;
+# returns False (no-op) if this url was already ingested
+stored = ingest_raw_article(raw_payload, source, article_url="https://reuters.com/example")
 
 # gets all unprocessed articles from table raw_ingestions
 unprocessed = get_unprocessed()

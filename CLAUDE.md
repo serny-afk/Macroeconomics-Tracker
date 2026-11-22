@@ -10,9 +10,9 @@ The point isn't to out-answer a chatbot on "what's happening right now" — it's
 
 It's a repurposed hackathon project — large parts of the original scope (chatbot, notifications, portfolio risk alerts) were hardcoded UI mockups with no backend and have been removed. Only features with a real, reachable implementation remain. When extending this project, don't reintroduce placeholder/mock UI for unbuilt features — either wire it through end to end or leave it out.
 
-**Target architecture constraint — read before adding any feature:** no user-facing request should ever trigger a live call to FRED, Alpha Vantage, GDELT, or Gemini. This site is meant to work like a news site or weather forecast: visitors only ever view pre-computed data from Supabase. All external data fetching happens on a schedule (planned: a GitHub Actions cron job), never on demand from a visitor's action. Do not add new search boxes, filters, or "fetch live data" buttons that call an external API per-request.
+**Target architecture constraint — read before adding any feature:** no user-facing request should ever trigger a live call to FRED, Alpha Vantage, GDELT, or Gemini. This site is meant to work like a news site or weather forecast: visitors only ever view pre-computed data from Supabase. All external data fetching happens on a schedule (a GitHub Actions cron job, `.github/workflows/daily-pipeline.yml`, daily at 07:00 UTC), never on demand from a visitor's action. Do not add new search boxes, filters, or "fetch live data" buttons that call an external API per-request.
 
-**Current status — mid-migration, not yet matching the target above:** the Macro/Market panels (`/api/macroeconomic/*`, `/api/market/*` in `main.py`, and the corresponding search/dropdown UI in `page.tsx`) still use an older live-query-per-request model, and there's no scheduled job yet — the news pipeline only runs when manually invoked. See `TODO.md` for the concrete, phased punch list to close this gap. Known bugs blocking the real (non-fake-seeded) pipeline are also tracked there: a relative-path bug in `dataprocesslib/processors/ticker_loader.py` and an arg-count bug in `dataprocesslib/pipeline.py`'s `process_batch()`.
+**Current status:** this constraint is fully met. The vitals lane (`/api/vitals/<macro|market>`) and the news lane both run exclusively via the daily cron job; no visitor-facing endpoint calls FRED, Alpha Vantage, GDELT, or Gemini synchronously (the two per-theme Gemini endpoints are lazy but cached 7 days, not per-visit). Both `dmacro-frontend` and `dmacro-backend` are deployed on Vercel. See `TODO.md` (gitignored, local-only) for the live punch list of remaining polish work.
 
 ## Commands
 
@@ -51,7 +51,7 @@ The enrichment pipeline is intentionally never deployed with the API — it's me
 
 Backend (`backend/.env` or `backend/src/.env`, loaded via `python-dotenv`):
 - `SUPABASE_URL`, `SUPABASE_KEY`
-- `GEMINI_API_KEY` — theme classification, theme analysis, implication chains, embeddings
+- `GEMINI_API_KEY` — theme classification, theme analysis, implication chains
 - `FRED_API_KEY`, `ALPHA_VANTAGE_API_KEY`
 - `FRONT_END_URL` — used for Flask-CORS origin allowlist
 
@@ -63,21 +63,23 @@ Frontend (`frontend/.env.local`):
 
 ### Data flow (offline → online)
 
-1. **Ingestion** (`backend/src/webcrawlerlib/`, `datalib/datalib.py`) — a Scrapy spider (`gdelt_spider.py`) discovers articles via the GDELT API and scrapes them; `datalib.py` also pulls FRED macro series and Alpha Vantage market data directly (no DB involved for these — served live on request).
+1. **Ingestion** (`backend/src/webcrawlerlib/`, `datalib/datalib.py`) — a Scrapy spider (`gdelt_spider.py`) discovers articles via the GDELT API and scrapes them. `datalib.py` also wraps the FRED/Alpha Vantage HTTP calls used by `get_vitals_snapshot.py` (see Vitals lane below) — not called from any live request path.
 2. **Raw storage** — scraped articles are uploaded to Supabase Storage (`raw-payloads` bucket) and tracked in the `raw_ingestions` table via `db.ingest_raw_article()`, marked `processed: false`.
 3. **Enrichment** (`backend/src/dataprocesslib/pipeline.py`) — pulls unprocessed raw articles, runs NER (spaCy, ticker/country extraction), sentiment (FinBERT), and importance scoring, producing a normalized event record. This step requires the heavy ML deps (`admin_requirements.txt`) and is run offline, not inside the deployed API.
 4. **Persistence + auto-classification** — `db.insert_event()` writes the enriched event to the `events` table, then fire-and-forgets `classify_and_link_event()` (`analysislib/classify_events.py`), which asks Gemini to classify the event into an **existing** theme from a closed list, or create a new one if nothing fits. This dedup-by-closed-list design is deliberate — it prevents synonym fragmentation (e.g. "US Inflation" vs "American Inflation Pressure").
-5. **Theme heat** — `analysislib/sync_themes.py` is a separate, independently-run job: it re-groups recent events by topic (`logic/macro_themes.py`, pure heuristic — not the same grouping as step 4's LLM classification) and recomputes heat scores (`logic/heat_score.py`: avg importance × avg recency × event-volume saturation, 0–100) before upserting into `themes`.
-6. **Serving** — `backend/src/main.py` (Flask) is the only thing actually deployed as the live API. It reads from Supabase and proxies FRED/Alpha Vantage, and lazily calls Gemini per-theme for the two cached, on-demand LLM features: theme analysis (`/api/themes/<id>/analysis`) and cross-asset implication chains (`/api/themes/<id>/chains`), both cached in their own tables with a 7-day staleness window (`force=true` to bypass).
+5. **Theme heat** — `analysislib/sync_themes.py` is a separate, independently-run job. It does **not** group or create themes — step 4's Gemini classification is the only place theme membership is decided. For each active theme, it pulls the theme's linked events and recomputes a heat score (`logic/heat_score.py`: avg importance × avg recency × event-volume saturation, 0–100) before upserting into `themes`. (`logic/macro_themes.py` still exists in the tree but is dead code — nothing imports it since this rewrite.)
+6. **Serving** — `backend/src/main.py` (Flask) is the only thing actually deployed as the live API. It reads from Supabase, and lazily calls Gemini per-theme for the two cached, on-demand LLM features: theme analysis (`/api/themes/<id>/analysis`) and cross-asset implication chains (`/api/themes/<id>/chains`), both cached in their own tables with a 7-day staleness window (`force=true` to bypass). `/api/classify-events` (manual classification backfill) requires an `X-Pipeline-Secret` header.
 
-Note: step 4 (Gemini closed-list classification) and step 5 (`sync_themes.py`'s heuristic grouping) are two independent, non-interacting paths to grouping events into themes — both write to the same `themes`/`event_theme_map` tables. Be aware of this when touching theme logic; they don't call each other.
+**Vitals lane (separate from the above):** `get_vitals_snapshot.py` fetches a fixed set of 8 FRED indicators + 8 Alpha Vantage ETF symbols and upserts them into the `vitals` table. `GET /api/vitals/<macro|market>` reads only that table — never calls FRED/Alpha Vantage per-request.
+
+Both lanes are triggered by `.github/workflows/daily-pipeline.yml` (daily cron) — not by any visitor action.
 
 ### Database (`backend/src/databaselib/schema.sql`, `db.py`)
 
-All access goes through `db.py` — no other module talks to Supabase directly except the webcrawler pipelines. Core tables: `events`, `themes`, `event_theme_map` (many-to-many), `raw_ingestions`, `memory` (pgvector, for future RAG use — not currently wired to any live retrieval feature), `theme_analyses` and `implication_chains` (LLM-output caches, keyed by `theme_id`).
+All access goes through `db.py` — no other module talks to Supabase directly except the webcrawler pipelines. Core tables: `events`, `themes`, `event_theme_map` (many-to-many), `raw_ingestions` (deduped by `url`), `vitals` (fixed macro/market snapshot), `memory` (pgvector — schema exists, but nothing currently reads or writes it), `theme_analyses` and `implication_chains` (LLM-output caches, keyed by `theme_id`).
 
 ### Frontend (`frontend/app/`)
 
-Single-page dashboard (`app/page.tsx`) composing independent panels (stock market, macro indicators, news feed, theme heat grid) each with their own fetch/loading/error state — there's no shared data layer or state management library. `app/timeline/[themeId]/page.tsx` is the per-theme drill-down (events timeline + AI analysis + implication chains); `app/event/[eventId]/page.tsx` renders a single article. Market/macro chart selections are cached to `localStorage` (`nfc.marketCards.v1`, `nfc.macroCards.v1`) so panels survive a refresh.
+Single-page dashboard (`app/page.tsx`) composing independent panels (stock market, macro indicators, news feed, theme heat grid) each with their own fetch/loading/error state — there's no shared data layer or state management library. `app/timeline/[themeId]/page.tsx` is the per-theme drill-down (events timeline + sentiment breakdown + AI analysis + implication chains); `app/event/[eventId]/page.tsx` renders a single article. The vitals panels just fetch-and-render the fixed `/api/vitals/<macro|market>` snapshot on mount — no search, filters, or localStorage-cached selections.
 
 In production, the frontend calls the backend in two different ways depending on context: client-side `fetch` calls use `NEXT_PUBLIC_BACKEND_BASE_URL` directly, while `next.config.ts` separately rewrites `/api/:path*` using `BACKEND_BASE_URL` — keep both in sync when changing the backend URL.

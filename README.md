@@ -1,5 +1,7 @@
 # README
 
+Live: [dmacro-frontend.vercel.app](https://dmacro-frontend.vercel.app)
+
 ## Tech Stack
 
 ### Frontend
@@ -18,7 +20,6 @@
 - FRED API (macroeconomic indicators)
 - GDELT API (news discovery for crawling)
 - Alpha Vantage (stock market data)
-- More macro indicator APIs WIP
 
 ### NLP / AI
 
@@ -29,12 +30,12 @@
 ### Storage
 
 - Supabase Postgres (structured data)
-- pgvector (semantic search / memory retrieval)
+- pgvector (schema present, not wired to a live feature yet)
 - Supabase Storage (raw payload archive)
 
 ### Automation
 
-- GitHub Actions — scheduled daily job for news ingestion and the macro/market vitals refresh, so no external API is ever called by a visitor's request (planned, see `TODO.md`)
+- GitHub Actions — scheduled daily job for news ingestion and the macro/market vitals refresh, so no external API is ever called by a visitor's request
 
 ### Deployment
 
