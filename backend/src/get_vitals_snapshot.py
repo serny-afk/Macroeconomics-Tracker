@@ -54,6 +54,29 @@ def _normalize_alpha_vantage_daily(raw):
     return observations
 
 
+def _change_percent(latest, previous):
+    """
+    Percent change from `previous` to `latest`.
+
+    `previous is None` means there's no prior observation at all (the series
+    only has one point so far) - no percent to report, 0.0 by convention.
+
+    `previous == 0` is a real prior value that happens to be zero (e.g. a
+    policy rate during a zero-rate period) - that's a different case from
+    "no data" and dividing by it is mathematically undefined, not "no
+    change". The original `if previous else 0.0` conflated both cases into
+    one branch, since 0.0 is falsy in Python - silently reporting 0% for a
+    real move off of a zero base.
+    """
+    if previous is None:
+        return 0.0
+    if previous == 0:
+        if latest == 0:
+            return 0.0
+        return 100.0 if latest > 0 else -100.0
+    return ((latest - previous) / previous) * 100
+
+
 def _upsert_from_observations(key, vital_type, label, category, observations):
     if not observations:
         logger.warning(f"[skip] No observations for {vital_type} {key}")
@@ -63,7 +86,7 @@ def _upsert_from_observations(key, vital_type, label, category, observations):
     x_labels = [row["date"] for row in observations]
     latest = points[-1]
     previous = points[-2] if len(points) > 1 else None
-    change_percent = ((latest - previous) / previous) * 100 if previous else 0.0
+    change_percent = _change_percent(latest, previous)
 
     upsert_vital(
         key=key,

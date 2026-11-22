@@ -257,6 +257,16 @@
 
 /* ── Sparkline ──────────────────────────────────────────── */
 
+.sparklineEmpty {
+  width: 100%;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+
 .sparkline {
   --sparkline-stroke: var(--teal);
   --sparkline-fill: var(--teal-soft);
@@ -474,6 +484,15 @@
 .heatCell:hover {
   transform: translateY(-1px);
   border-color: var(--hairline-strong);
+}
+
+.heatCellStatic {
+  cursor: default;
+}
+
+.heatCellStatic:hover {
+  transform: none;
+  border-color: var(--hairline);
 }
 
 .heatScrim {

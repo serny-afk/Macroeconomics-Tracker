@@ -77,6 +77,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Recompute theme heat scores
+        # always() so a handful of failed articles in the step above (now a
+        # red step, not a silent pass) doesn't also skip heat-sync for
+        # whatever did get classified that run.
+        if: always()
         run: python -m analysislib.sync_themes
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

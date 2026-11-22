@@ -119,6 +119,10 @@ function Sparkline({
   tone: "up" | "down";
   xLabels?: string[];
 }) {
+  if (points.length === 0) {
+    return <div className={styles.sparklineEmpty}>No history yet</div>;
+  }
+
   const width = 360;
   const height = 180;
   const padLeft = 50;
@@ -718,20 +722,43 @@ export default function Home() {
                 <p className={styles.macroEmpty}>No theme heat data yet.</p>
               ) : (
                 <div className={styles.heatGrid}>
-                  {heatCells.map((cell) => (
-                    <Link
-                      key={cell.theme_id || cell.topic}
-                      href={cell.theme_id ? `/timeline/${cell.theme_id}` : "#"}
-                      className={styles.heatCell}
-                      style={pressureCellStyle(cell.score)}
-                    >
-                      <span className={styles.heatScrim} aria-hidden />
-                      <p className={styles.heatTopic}>{cell.topic}</p>
-                      <p className={styles.heatScore}>
-                        <span className={styles.heatScoreLabel}>Heat</span> {cell.score}
-                      </p>
-                    </Link>
-                  ))}
+                  {heatCells.map((cell) => {
+                    const content = (
+                      <>
+                        <span className={styles.heatScrim} aria-hidden />
+                        <p className={styles.heatTopic}>{cell.topic}</p>
+                        <p className={styles.heatScore}>
+                          <span className={styles.heatScoreLabel}>Heat</span> {cell.score}
+                        </p>
+                      </>
+                    );
+
+                    // theme_id is the themes table's primary key (NOT NULL), so this
+                    // shouldn't happen with real data - but if it ever does, render a
+                    // plain non-interactive tile instead of a dead clickable link.
+                    if (!cell.theme_id) {
+                      return (
+                        <div
+                          key={cell.topic}
+                          className={`${styles.heatCell} ${styles.heatCellStatic}`}
+                          style={pressureCellStyle(cell.score)}
+                        >
+                          {content}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <Link
+                        key={cell.theme_id}
+                        href={`/timeline/${cell.theme_id}`}
+                        className={styles.heatCell}
+                        style={pressureCellStyle(cell.score)}
+                      >
+                        {content}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </section>
