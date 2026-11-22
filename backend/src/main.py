@@ -179,6 +179,7 @@ def get_theme_timeline(theme_id: str) -> Response:
                     "sentiment": ev.get("sentiment"),
                     "region": ev.get("region"),
                     "asset_classes": ev.get("asset_classes") or [],
+                    "entities": ev.get("entities") or {"tickers": [], "countries": []},
                 }
                 for ev in events
             ],

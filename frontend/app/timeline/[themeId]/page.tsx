@@ -27,6 +27,11 @@ type ThemeData = {
   sentiment_breakdown: SentimentBreakdown | null;
 };
 
+type EventEntities = {
+  tickers: string[];
+  countries: string[];
+};
+
 type TimelineEvent = {
   event_id: string;
   date: string;
@@ -37,6 +42,7 @@ type TimelineEvent = {
   sentiment: string | null;
   region: string | null;
   asset_classes: string[];
+  entities: EventEntities | null;
 };
 
 type TimelineResponse = {
@@ -570,6 +576,16 @@ export default function TimelinePage() {
                         {ev.asset_classes.length > 0 ? (
                           <span className={styles.timelineAssets}>
                             {ev.asset_classes.join(", ")}
+                          </span>
+                        ) : null}
+                        {ev.entities?.tickers.length ? (
+                          <span className={styles.timelineEntityTag}>
+                            🏷 {ev.entities.tickers.join(", ")}
+                          </span>
+                        ) : null}
+                        {ev.entities?.countries.length ? (
+                          <span className={styles.timelineEntityTag}>
+                            🌍 {ev.entities.countries.join(", ")}
                           </span>
                         ) : null}
                       </div>

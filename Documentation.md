@@ -432,7 +432,7 @@ memory.metadata.event_id -> events.raw_payload_ref -> Supabase Storage
 
 ## Memory Store
 
-The `memory` table (pgvector) and its `insert_memory`/`search_memory` functions in `db.py` exist but are not called by any current feature — no code path writes to or reads from this table.
+The `memory` table (pgvector) and its `insert_memory`/`search_memory` functions in `db.py` are only exercised by the standalone `test_db.py` smoke test — no production code path writes to or reads from this table.
 
 ## Storage API
 
