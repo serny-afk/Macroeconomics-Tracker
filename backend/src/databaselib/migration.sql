@@ -46,7 +46,8 @@ create table public.event_theme_map (
   event_id uuid references public.events(event_id),
   theme_id uuid references public.themes(theme_id),
   created_at timestamp with time zone default now(),
-  constraint event_theme_map_pkey primary key (id)
+  constraint event_theme_map_pkey primary key (id),
+  constraint event_theme_map_event_theme_unique unique (event_id, theme_id)
 );
 
 create table public.raw_ingestions (
@@ -127,3 +128,16 @@ $$;
 -- Storage buckets can't be created via SQL. After running this migration,
 -- go to Storage in the Supabase dashboard and create a bucket named
 -- "raw-payloads" (private is fine — the backend uses the service key).
+
+-- ── Post-launch migration (2026-11-22) ───────────────────────────────────────
+-- Run this against an EXISTING project that was already set up before this
+-- fix — the create table above already includes it for fresh installs.
+-- Closes a race: classify_events.py's fire-and-forget auto-classify and a
+-- manual /api/classify-events backfill could otherwise double-link the same
+-- event to the same theme, double-counting it in heat/sentiment calcs.
+-- db.py's link_event_to_theme() now upserts on this constraint, so this must
+-- be applied before that code path runs, or the upsert's on_conflict target
+-- won't match any constraint and PostgREST will error.
+
+alter table public.event_theme_map
+  add constraint event_theme_map_event_theme_unique unique (event_id, theme_id);

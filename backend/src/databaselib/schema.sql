@@ -39,7 +39,11 @@ CREATE TABLE public.event_theme_map (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT event_theme_map_pkey PRIMARY KEY (id),
   CONSTRAINT event_theme_map_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(event_id),
-  CONSTRAINT event_theme_map_theme_id_fkey FOREIGN KEY (theme_id) REFERENCES public.themes(theme_id)
+  CONSTRAINT event_theme_map_theme_id_fkey FOREIGN KEY (theme_id) REFERENCES public.themes(theme_id),
+  -- Lets link_event_to_theme() upsert instead of insert, so a race between
+  -- the auto-classify fire-and-forget and a manual backfill can't double-link
+  -- the same event+theme pair.
+  CONSTRAINT event_theme_map_event_theme_unique UNIQUE (event_id, theme_id)
 );
 
 CREATE TABLE public.raw_ingestions (

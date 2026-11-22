@@ -24,6 +24,18 @@ def _require_supabase() -> Client:
 
 JsonDict = dict[str, Any]
 
+
+def _single(response: Any, operation: str) -> JsonDict:
+    """
+    Return the first row from an insert/update/upsert response, raising a
+    clear error instead of a bare IndexError when PostgREST returns zero rows
+    (RLS denial, a conflict, or an update/upsert that matched nothing).
+    """
+    data = response.data
+    if not data:
+        raise RuntimeError(f"{operation} returned no rows - check RLS policies and filters.")
+    return cast(JsonDict, data[0])
+
 @dataclass
 class Event:
     event_id: str
@@ -82,7 +94,7 @@ def insert_event(event: Event | dict) -> JsonDict:
     # Handle both Event objects and dicts
     event_data = vars(event) if hasattr(event, '__dict__') else event
     
-    result = cast(JsonDict, _require_supabase().table("events").insert(event_data).execute().data[0])
+    result = _single(_require_supabase().table("events").insert(event_data).execute(), "insert_event")
     
     # Auto-classify into themes (fire-and-forget)
     try:
@@ -112,34 +124,39 @@ def get_theme_by_id(theme_id: str) -> JsonDict | None:
 
 def insert_theme(theme: "Theme | JsonDict") -> JsonDict:
     data = vars(theme) if isinstance(theme, Theme) else theme
-    return cast(JsonDict, _require_supabase().table("themes").insert(data).execute().data[0])
+    return _single(_require_supabase().table("themes").insert(data).execute(), "insert_theme")
 
 
 def update_theme(theme_id: str, updates: JsonDict) -> JsonDict:
-    return (
-        cast(
-            JsonDict,
-            _require_supabase().table("themes")
-            .update(updates)
-            .eq("theme_id", theme_id)
-            .execute()
-            .data[0],
-        )
+    response = (
+        _require_supabase().table("themes")
+        .update(updates)
+        .eq("theme_id", theme_id)
+        .execute()
     )
+    return _single(response, f"update_theme({theme_id})")
 
 
 # â”€â”€ Event-theme map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def link_event_to_theme(event_id: str, theme_id: str) -> JsonDict:
-    return (
-        cast(
-            JsonDict,
-            _require_supabase().table("event_theme_map")
-            .insert({"event_id": event_id, "theme_id": theme_id})
-            .execute()
-            .data[0],
+    """
+    Link an event to a theme. Upserts on the (event_id, theme_id) unique
+    constraint so a race between the fire-and-forget auto-classify
+    (triggered by insert_event) and a manual /api/classify-events backfill
+    can't create a duplicate link for the same pair - which would otherwise
+    double-count that event in heat/sentiment calculations. Requires the
+    event_theme_map_event_theme_unique constraint (see migration.sql).
+    """
+    response = (
+        _require_supabase().table("event_theme_map")
+        .upsert(
+            {"event_id": event_id, "theme_id": theme_id},
+            on_conflict="event_id,theme_id",
         )
+        .execute()
     )
+    return _single(response, f"link_event_to_theme({event_id}, {theme_id})")
 
 
 def get_events_for_theme(theme_id: str) -> list[JsonDict]:
@@ -199,22 +216,19 @@ def get_unlinked_events(days: int = 7) -> list[JsonDict]:
 def insert_memory(
     content: str, embedding: list[float], content_type: str, metadata: JsonDict
 ) -> JsonDict:
-    return (
-        cast(
-            JsonDict,
-            _require_supabase().table("memory")
-            .insert(
-                {
-                    "content": content,
-                    "embedding": embedding,
-                    "content_type": content_type,
-                    "metadata": metadata,
-                }
-            )
-            .execute()
-            .data[0],
+    response = (
+        _require_supabase().table("memory")
+        .insert(
+            {
+                "content": content,
+                "embedding": embedding,
+                "content_type": content_type,
+                "metadata": metadata,
+            }
         )
+        .execute()
     )
+    return _single(response, "insert_memory")
 
 
 def search_memory(
@@ -286,13 +300,14 @@ def ingest_raw_article(raw_payload: str, source: str, article_url: str | None = 
     )
 
     # upload entry data to raw ingestions
-    _require_supabase().table("raw_ingestions").insert(
+    response = _require_supabase().table("raw_ingestions").insert(
         {
             "storage_path": storage_path,
             "source": source,
             "url": article_url,
         }
-    ).execute().data[0]
+    ).execute()
+    _single(response, "ingest_raw_article")
 
     return True
 
@@ -367,8 +382,7 @@ def get_theme_analysis(theme_id: str) -> JsonDict | None:
 
 def upsert_theme_analysis(theme_id: str, analysis: str) -> JsonDict:
     """Insert or update the cached LLM analysis for a theme."""
-    return cast(
-        JsonDict,
+    response = (
         _require_supabase().table("theme_analyses")
         .upsert(
             {
@@ -379,8 +393,8 @@ def upsert_theme_analysis(theme_id: str, analysis: str) -> JsonDict:
             on_conflict="theme_id",
         )
         .execute()
-        .data[0],
     )
+    return _single(response, f"upsert_theme_analysis({theme_id})")
 
 
 # ── Implication chains ───────────────────────────────────────────────────
@@ -399,8 +413,7 @@ def get_implication_chains(theme_id: str) -> JsonDict | None:
 def upsert_implication_chains(theme_id: str, chains: list) -> JsonDict:
     """Insert or update the cached implication chains for a theme."""
     import json as _json
-    return cast(
-        JsonDict,
+    response = (
         _require_supabase().table("implication_chains")
         .upsert(
             {
@@ -411,8 +424,8 @@ def upsert_implication_chains(theme_id: str, chains: list) -> JsonDict:
             on_conflict="theme_id",
         )
         .execute()
-        .data[0],
     )
+    return _single(response, f"upsert_implication_chains({theme_id})")
 
 
 # ── Vitals (pre-computed macro/market snapshot) ──────────────────────────
@@ -437,8 +450,7 @@ def upsert_vital(
     x_labels: list[str],
 ) -> JsonDict:
     """Insert or update a single vitals row (one macro indicator or market symbol)."""
-    return cast(
-        JsonDict,
+    response = (
         _require_supabase().table("vitals")
         .upsert(
             {
@@ -456,5 +468,5 @@ def upsert_vital(
             on_conflict="key",
         )
         .execute()
-        .data[0],
     )
+    return _single(response, f"upsert_vital({key})")
