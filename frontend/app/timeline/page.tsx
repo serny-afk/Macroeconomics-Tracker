@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { BrandMark } from "../components/BrandMark";
 import styles from "./[themeId]/page.module.css";
 
 const API_BASE_URL =
@@ -48,7 +49,10 @@ export default function TimelineIndexPage() {
           <Link href="/" className={styles.backLink}>
             ← Dashboard
           </Link>
-          <p className={styles.brand}>DMACRO</p>
+          <div className={styles.brandMark}>
+            <BrandMark size={20} />
+            <p className={styles.brand}>DMacro</p>
+          </div>
         </div>
       </header>
 

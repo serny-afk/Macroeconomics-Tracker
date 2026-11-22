@@ -10,19 +10,16 @@
       "Bash(git blame:*)",
       "Bash(git remote -v)",
       "Bash(git stash list)",
-
       "Bash(node -v)",
       "Bash(node --version)",
       "Bash(npm -v)",
       "Bash(npm --version)",
       "Bash(npm ls:*)",
       "Bash(npm outdated:*)",
-
       "Bash(npm run lint:*)",
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
       "Bash(npm run dev:turbo:*)",
-
       "Bash(python --version)",
       "Bash(python3 --version)",
       "Bash(pip show:*)",
@@ -33,13 +30,11 @@
       "Bash(su:*)",
       "Bash(gsudo:*)",
       "Bash(runas:*)",
-
       "Bash(rm:*)",
       "Bash(rmdir:*)",
       "Bash(del:*)",
       "Bash(rd:*)",
       "Bash(shred:*)",
-
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
       "Bash(git reset --hard:*)",
@@ -48,29 +43,28 @@
       "Bash(git restore .)",
       "Bash(git branch -D:*)",
       "Bash(git rebase:*)",
-
       "Bash(curl *|*)",
       "Bash(wget *|*)",
       "Bash(iwr *|*)",
       "Bash(iex:*)",
-
       "Bash(shutdown:*)",
       "Bash(reboot:*)",
       "Bash(format:*)",
       "Bash(diskpart:*)",
       "Bash(powershell -Command *Remove-Item*)",
-
       "Bash(npm publish:*)",
       "Bash(npm run migrate:*)",
       "Bash(npm run undo-migrate:*)",
       "Bash(sequelize db:migrate:*)",
       "Bash(sequelize db:migrate:undo:*)",
       "Bash(sequelize db:drop:*)",
-
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(./**/ .env)",
       "Read(./**/ .env.*)"
     ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true
   }
 }

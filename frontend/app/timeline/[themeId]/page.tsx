@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
+import { BrandMark } from "../../components/BrandMark";
 import styles from "./page.module.css";
 
 const API_BASE_URL =
@@ -81,17 +82,50 @@ function sentimentToneClass(sentiment: string | null) {
 }
 
 const SENTIMENT_COLORS: Record<"risk-on" | "risk-off" | "neutral", string> = {
-  "risk-on": "#4ade80",
-  "risk-off": "#f87171",
-  neutral: "#94a3b8",
+  "risk-on": "#57c2b0",
+  "risk-off": "#c8694a",
+  neutral: "#8c93a0",
 };
 
+const HEAT_TEAL = "#57c2b0";
+const HEAT_BRASS = "#c9a341";
+const HEAT_RUST = "#c8694a";
+const HEAT_INK = "#0b0f14";
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex([r, g, b]: readonly number[]): string {
+  return `#${[r, g, b]
+    .map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function mixHex(a: string, b: string, t: number): string {
+  const ar = hexToRgb(a);
+  const br = hexToRgb(b);
+  return rgbToHex(ar.map((v, i) => v + (br[i] - v) * t));
+}
+
+function relativeLuminance(hex: string): number {
+  const channels = hexToRgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+/** Same teal -> brass -> rust pressure-cell mapping used on the home page's heat grid. */
 function heatBadgeStyle(score: number): CSSProperties {
-  const clamped = Math.max(0, Math.min(100, score));
-  const hue = (1 - clamped / 100) * 120;
+  const t = Math.max(0, Math.min(100, score)) / 100;
+  const bloom = t < 0.5 ? mixHex(HEAT_TEAL, HEAT_BRASS, t / 0.5) : mixHex(HEAT_BRASS, HEAT_RUST, (t - 0.5) / 0.5);
+  const edge = mixHex(bloom, HEAT_INK, 0.55);
+
   return {
-    backgroundColor: `hsl(${hue}, 100%, 30%)`,
-    borderColor: `hsl(${hue}, 100%, 40%)`,
+    backgroundImage: `radial-gradient(circle at 32% 28%, ${bloom} 0%, ${edge} 75%, ${HEAT_INK} 100%)`,
+    color: relativeLuminance(bloom) > 0.45 ? HEAT_INK : "#ece8df",
   };
 }
 
@@ -316,7 +350,10 @@ export default function TimelinePage() {
           <Link href="/" className={styles.backLink}>
             ← Dashboard
           </Link>
-          <p className={styles.brand}>DMACRO</p>
+          <div className={styles.brandMark}>
+            <BrandMark size={20} />
+            <p className={styles.brand}>DMacro</p>
+          </div>
         </div>
       </header>
 

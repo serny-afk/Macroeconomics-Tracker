@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { BrandMark } from "../../components/BrandMark";
 import styles from "./page.module.css";
 
 const API_BASE_URL =
@@ -166,7 +167,10 @@ export default function ArticleViewerPage() {
           <Link href="/" className={styles.backLink}>
             ← Dashboard
           </Link>
-          <p className={styles.brand}>DMACRO</p>
+          <div className={styles.brandMark}>
+            <BrandMark size={20} />
+            <p className={styles.brand}>DMacro</p>
+          </div>
         </div>
       </header>
 

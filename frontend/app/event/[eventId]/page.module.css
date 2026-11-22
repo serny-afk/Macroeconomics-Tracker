@@ -1,21 +1,9 @@
 .page {
-  --bg: #000000;
-  --header-bg: #0a0a0a;
-  --panel-bg: #111111;
-  --panel-bg-soft: #1a1a1a;
-  --border: rgba(255, 255, 255, 0.25);
-  --text: #f5f5f5;
-  --text-muted: #b5b5b5;
-  --text-soft: #d6d6d6;
-  --accent: #fcd34d;
-  --feature: #fbbf24;
-  --positive: #34d399;
-  --negative: #fb7185;
-
+  --positive: var(--teal);
+  --negative: var(--rust);
   min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--ink);
+  color: var(--paper);
 }
 
 /* ── Header ─────────────────────────────────────────────── */
@@ -24,38 +12,51 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--header-bg);
-  border-bottom: 1px solid var(--border);
+  background: var(--ink);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .headerInner {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0.65rem 1rem;
+  padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
   gap: 1.25rem;
 }
 
+.brandMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .brand {
   margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  color: var(--accent);
+  font-family: var(--font-condensed);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--paper);
 }
 
 .backLink {
-  font-size: 0.8rem;
-  color: var(--text-soft);
+  font-family: var(--font-condensed);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
   text-decoration: none;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  padding: 0.3rem 0.65rem;
-  transition: background 160ms ease;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid transparent;
+  transition: color 140ms ease, border-color 140ms ease;
 }
 
 .backLink:hover {
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--brass);
+  border-color: var(--brass);
 }
 
 /* ── Main ────────────────────────────────────────────────── */
@@ -63,7 +64,7 @@
 .main {
   max-width: 900px;
   margin: 0 auto;
-  padding: 1.5rem 1rem;
+  padding: 1.5rem 1rem 3rem;
   display: grid;
   gap: 1.25rem;
 }
@@ -73,34 +74,38 @@
 .status {
   margin: 1rem 0;
   font-size: 0.8rem;
-  color: var(--text-soft);
+  color: var(--muted);
 }
 
 /* ── Error page ──────────────────────────────────────────── */
 
 .errorPage {
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid var(--hairline-strong);
+  border-left: 2px solid var(--rust);
+  border-radius: var(--radius);
+  background: var(--ink-raised);
   padding: 2rem 1.5rem;
   text-align: center;
 }
 
 .errorIcon {
-  font-size: 2.5rem;
+  font-size: 2.25rem;
   margin-bottom: 0.75rem;
+  filter: grayscale(1);
 }
 
 .errorTitle {
   margin: 0 0 0.5rem;
-  font-size: 1.15rem;
+  font-family: var(--font-condensed);
+  font-size: 1.1rem;
   font-weight: 700;
-  color: #fecaca;
+  color: var(--rust);
 }
 
 .errorText {
   margin: 0 0 1rem;
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: var(--muted);
   max-width: 480px;
   margin-left: auto;
   margin-right: auto;
@@ -109,38 +114,46 @@
 
 .errorBackLink {
   display: inline-block;
-  font-size: 0.8rem;
-  color: var(--accent);
+  font-family: var(--font-condensed);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brass);
   text-decoration: none;
-  border: 1px solid rgba(252, 211, 77, 0.4);
+  border: 1px solid rgba(201, 163, 65, 0.4);
+  border-radius: var(--radius);
   padding: 0.4rem 0.9rem;
   transition: background 160ms ease;
 }
 
 .errorBackLink:hover {
-  background: rgba(252, 211, 77, 0.12);
+  background: var(--brass-soft);
 }
 
 /* ── Article card ────────────────────────────────────────── */
 
 .articleCard {
-  border: 1px solid var(--border);
-  background: var(--panel-bg);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--ink-raised);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   padding: 1.5rem;
 }
 
 .articleHeader {
   margin-bottom: 1rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .articleTitle {
   margin: 0 0 0.65rem;
-  font-size: 1.35rem;
+  font-family: var(--font-condensed);
+  font-size: 1.4rem;
   font-weight: 700;
-  color: var(--accent);
-  line-height: 1.35;
+  color: var(--paper);
+  line-height: 1.3;
 }
 
 .articleMeta {
@@ -151,68 +164,68 @@
 }
 
 .metaTag {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--ink-raised-2);
   padding: 0.2rem 0.55rem;
-  font-size: 0.7rem;
-  color: #e2e8f0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--muted);
   text-transform: capitalize;
 }
 
 .sentimentTag {
-  border-radius: 0;
-  border: 1px solid transparent;
+  border-radius: var(--radius);
+  border: 1px solid var(--hairline-strong);
   padding: 0.15rem 0.5rem;
-  font-size: 0.65rem;
+  font-family: var(--font-condensed);
+  font-size: 0.64rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 
 .sentimentRiskOn {
-  background: rgba(34, 197, 94, 0.18);
-  border-color: rgba(74, 222, 128, 0.35);
-  color: #bbf7d0;
+  border-color: rgba(87, 194, 176, 0.45);
+  color: var(--teal);
 }
 
 .sentimentRiskOff {
-  background: rgba(239, 68, 68, 0.18);
-  border-color: rgba(248, 113, 113, 0.35);
-  color: #fecaca;
+  border-color: rgba(200, 105, 74, 0.45);
+  color: var(--rust);
 }
 
 .sentimentNeutral {
-  background: rgba(148, 163, 184, 0.18);
-  border-color: rgba(148, 163, 184, 0.35);
-  color: #cbd5e1;
+  border-color: var(--hairline-strong);
+  color: var(--muted);
 }
 
 .impactTag {
-  border-radius: 0;
-  border: 1px solid transparent;
-  background: rgba(51, 65, 85, 0.9);
+  border-radius: var(--radius);
+  border: 1px solid var(--hairline-strong);
+  background: var(--ink-raised-2);
   padding: 0.15rem 0.5rem;
-  font-size: 0.625rem;
+  font-family: var(--font-condensed);
+  font-size: 0.62rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #e2e8f0;
+  letter-spacing: 0.08em;
+  color: var(--muted);
 }
 
 .impactHigh {
-  background: rgba(239, 68, 68, 0.22);
-  border-color: rgba(248, 113, 113, 0.45);
-  color: #fecaca;
+  border-color: rgba(200, 105, 74, 0.45);
+  color: var(--rust);
 }
 
 .impactMedium {
-  background: rgba(250, 204, 21, 0.22);
-  border-color: rgba(253, 224, 71, 0.45);
-  color: #fef08a;
+  border-color: rgba(201, 163, 65, 0.45);
+  color: var(--brass);
 }
 
 .impactLow {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: rgba(74, 222, 128, 0.45);
-  color: #bbf7d0;
+  border-color: rgba(87, 194, 176, 0.45);
+  color: var(--teal);
 }
 
 /* ── Article body ────────────────────────────────────────── */
@@ -222,18 +235,21 @@
 }
 
 .articleSectionTitle {
-  margin: 1.25rem 0 0.5rem;
-  font-size: 0.75rem;
+  margin: 1.5rem 0 0.6rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--brass);
+  font-family: var(--font-condensed);
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--feature);
+  letter-spacing: 0.12em;
+  color: var(--brass);
 }
 
 .articleContent {
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   line-height: 1.7;
-  color: var(--text-soft);
+  color: var(--paper);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -241,8 +257,9 @@
 .articleUrl {
   display: inline-block;
   margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--teal);
   text-decoration: none;
   word-break: break-all;
 }
@@ -256,27 +273,29 @@
 .enrichedSection {
   margin-top: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid var(--hairline);
 }
 
 .enrichedLabel {
   margin: 0 0 0.35rem;
-  font-size: 0.688rem;
+  font-family: var(--font-condensed);
+  font-size: 0.66rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  letter-spacing: 0.14em;
+  color: var(--faint);
 }
 
 .enrichedText {
   font-size: 0.85rem;
   line-height: 1.6;
-  color: var(--text-soft);
+  color: var(--muted);
   white-space: pre-wrap;
 }
 
 @media (min-width: 640px) {
   .headerInner {
-    padding: 0.65rem 1.5rem;
+    padding: 0.75rem 1.5rem;
   }
 
   .main {

@@ -1,20 +1,65 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050b14;
-  --foreground: #e2e8f0;
+  /* Night Wire — wire-service dispatch meets weather-pressure map */
+  --ink: #0b0f14;
+  --ink-raised: #12181f;
+  --ink-raised-2: #171e26;
+  --hairline: rgba(236, 232, 223, 0.1);
+  --hairline-strong: rgba(236, 232, 223, 0.2);
+
+  --paper: #ece8df;
+  --muted: #8c93a0;
+  --faint: #5d636e;
+
+  --brass: #c9a341;
+  --brass-soft: rgba(201, 163, 65, 0.14);
+  --teal: #57c2b0;
+  --teal-soft: rgba(87, 194, 176, 0.14);
+  --rust: #c8694a;
+  --rust-soft: rgba(200, 105, 74, 0.14);
+
+  --radius: 2px;
+  --font-sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-condensed: "IBM Plex Sans Condensed", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Code", monospace;
+
+  background: var(--ink);
+  color: var(--paper);
   color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: "Segoe UI", "Trebuchet MS", sans-serif;
-  --font-mono: "Cascadia Code", "Consolas", monospace;
+  --color-background: var(--ink);
+  --color-foreground: var(--paper);
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-sans), sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

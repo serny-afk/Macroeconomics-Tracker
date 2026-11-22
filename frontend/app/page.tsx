@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { BrandMark } from "./components/BrandMark";
 import {
   ChartCandlestick,
   Earth,
@@ -54,7 +54,7 @@ type HeatCell = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL ?? "";
 const NEWS_ROTATE_MS = 6000;
-const MAX_SPARKLINE_TICKS = 6;
+const MAX_SPARKLINE_TICKS = 4;
 
 function toSeriesCard(row: VitalRow, type: "stock" | "macro"): SeriesCard {
   return {
@@ -149,6 +149,9 @@ function Sparkline({
     return { index, value, y };
   });
 
+  const areaPath = `${path} L ${width - padRight} ${height - padBottom} L ${padLeft} ${height - padBottom} Z`;
+  const gradientId = useId();
+
   const hasDateLabels = Array.isArray(xLabels) && xLabels.length === points.length;
   const xAxisGranularity = hasDateLabels ? chooseXAxisGranularity(xLabels) : "month";
   const xTicks = tickFractions.map((fraction, index) => {
@@ -179,6 +182,13 @@ function Sparkline({
       preserveAspectRatio="none"
       aria-hidden
     >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--sparkline-stroke)" stopOpacity="0.32" />
+          <stop offset="100%" stopColor="var(--sparkline-stroke)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
       {yTicks.map((tick) => (
         <line
           key={`grid-${tick.index}`}
@@ -192,18 +202,12 @@ function Sparkline({
       <line
         className={styles.sparklineAxis}
         x1={padLeft}
-        y1={padTop}
-        x2={padLeft}
-        y2={height - padBottom}
-      />
-      <line
-        className={styles.sparklineAxis}
-        x1={padLeft}
         y1={height - padBottom}
         x2={width - padRight}
         y2={height - padBottom}
       />
 
+      <path className={styles.sparklineArea} d={areaPath} fill={`url(#${gradientId})`} />
       <path className={styles.sparklinePath} d={path} />
 
       {yTicks.map((tick) => (
@@ -245,32 +249,42 @@ function Sparkline({
 }
 
 
-function heatToneStyle(score: number): CSSProperties {
-  /**
-   * Fixed 10-step heat scale:
-   * low values -> green, mid values -> yellow/orange, high values -> red.
-   */
-  const clamped = Math.max(0, Math.min(score, 99));
-  const palette = [
-    "#1a9850",
-    "#4db15e",
-    "#7acb68",
-    "#a5da70",
-    "#d0e878",
-    "#f4f491",
-    "#f7d26a",
-    "#f9b05a",
-    "#ef7e4a",
-    "#d73027",
-  ];
-  const bucketIndex = Math.floor(clamped / palette.length);
-  const fill = palette[bucketIndex];
-  const textColor = bucketIndex <= 1 || bucketIndex >= 8 ? "#f5f5f5" : "#111111";
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex([r, g, b]: readonly number[]): string {
+  return `#${[r, g, b]
+    .map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function mixHex(a: string, b: string, t: number): string {
+  const ar = hexToRgb(a);
+  const br = hexToRgb(b);
+  return rgbToHex(ar.map((v, i) => v + (br[i] - v) * t));
+}
+
+const HEAT_TEAL = "#57c2b0";
+const HEAT_BRASS = "#c9a341";
+const HEAT_RUST = "#c8694a";
+const HEAT_INK = "#0b0f14";
+
+/**
+ * Pressure cell: a continuous teal -> brass -> rust gradient keyed on heat
+ * score, rendered as a radial "heat bloom" (weather-pressure-map styling).
+ * Label text always sits over a dark scrim (see .heatScrim), so it stays
+ * legible regardless of where the bloom falls on the teal/brass/rust range —
+ * no need to pick text color per-tile from the bloom's luminance.
+ */
+function pressureCellStyle(score: number): CSSProperties {
+  const t = Math.max(0, Math.min(100, score)) / 100;
+  const bloom = t < 0.5 ? mixHex(HEAT_TEAL, HEAT_BRASS, t / 0.5) : mixHex(HEAT_BRASS, HEAT_RUST, (t - 0.5) / 0.5);
+  const edge = mixHex(bloom, HEAT_INK, 0.55);
 
   return {
-    backgroundColor: fill,
-    borderColor: fill,
-    color: textColor,
+    backgroundImage: `radial-gradient(circle at 30% 26%, ${bloom} 0%, ${edge} 68%, ${HEAT_INK} 100%)`,
   };
 }
 
@@ -285,6 +299,27 @@ function formatMetricValue(value: number | null) {
 function formatPercentChange(value: number) {
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(2)}%`;
+}
+
+function latestTimestamp(current: string | null, rows: VitalRow[]): string | null {
+  const candidates = rows.map((r) => r.updated_at).filter((v): v is string => Boolean(v));
+  const all = current ? [current, ...candidates] : candidates;
+  if (all.length === 0) return current;
+  return all.reduce((latest, ts) => (ts > latest ? ts : latest));
+}
+
+function formatSyncTimestamp(raw: string | null) {
+  if (!raw) return "SYNCING…";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "SYNCED";
+  const date = Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  }).format(parsed);
+  return `SYNCED ${date} UTC`;
 }
 
 export default function Home() {
@@ -303,6 +338,7 @@ export default function Home() {
   const [newsError, setNewsError] = useState<string | null>(null);
   const [activeNewsIndex, setActiveNewsIndex] = useState(0);
   const newsViewportRef = useRef<HTMLDivElement | null>(null);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -318,6 +354,7 @@ export default function Home() {
 
         const data = (await response.json()) as VitalRow[];
         setMarketCards(data.map((row) => toSeriesCard(row, "stock")));
+        setLastSynced((prev) => latestTimestamp(prev, data));
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setMarketCards([]);
@@ -345,6 +382,7 @@ export default function Home() {
 
         const data = (await response.json()) as VitalRow[];
         setMacroCards(data.map((row) => toSeriesCard(row, "macro")));
+        setLastSynced((prev) => latestTimestamp(prev, data));
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setMacroCards([]);
@@ -470,15 +508,18 @@ export default function Home() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.brandRow}>
-            <p className={styles.brand}>DMacro</p>
-            <Image
-              src="/logo.png"
-              alt="DMacro logo"
-              width={42}
-              height={24}
-              className={styles.brandLogo}
-              priority
-            />
+            <div className={styles.brandMark}>
+              <BrandMark size={24} />
+              <p className={styles.brand}>DMacro</p>
+            </div>
+            <p className={styles.syncLine}>
+              <span className={styles.syncDot} aria-hidden />
+              {formatSyncTimestamp(lastSynced)}
+            </p>
+          </div>
+          <div className={styles.dispatchRule}>
+            <span>Macro &amp; Market Bulletin</span>
+            <span>Pre-computed Daily · No Live Queries</span>
           </div>
         </div>
       </header>
@@ -617,7 +658,7 @@ export default function Home() {
 
                 {!newsLoading && !newsError && newsArticles.length > 0 ? (
                   <div className={styles.newsTrack}>
-                    {newsArticles.map((article) => (
+                    {newsArticles.map((article, index) => (
                       <Link
                       key={article.id}
                       href={`/event/${article.id}`}
@@ -625,6 +666,7 @@ export default function Home() {
                       className={styles.timelineEventLink}
                       >
                       <article key={article.id} className={styles.newsCard}>
+                        <p className={styles.newsEyebrow}>Dispatch {String(index + 1).padStart(2, "0")}</p>
                         <p className={styles.newsTitle}>{article.title}</p>
                         <p className={styles.newsDescription}>{article.description}</p>
                       </article>
@@ -634,9 +676,32 @@ export default function Home() {
                 ) : null}
               </div>
 
-              <p className={styles.macroEmpty}>
-                Click to see more
-              </p>
+              {newsArticles.length > 0 ? (
+                <div className={styles.newsFooter}>
+                  <div className={styles.newsDots}>
+                    {newsArticles.map((article, index) => (
+                      <button
+                        key={article.id}
+                        type="button"
+                        aria-label={`Show dispatch ${index + 1}`}
+                        className={`${styles.newsDot} ${
+                          index === activeNewsIndex ? styles.newsDotActive : ""
+                        }`}
+                        onClick={() => {
+                          setActiveNewsIndex(index);
+                          const viewport = newsViewportRef.current;
+                          if (viewport) {
+                            viewport.scrollTo({ top: index * viewport.clientHeight, behavior: "smooth" });
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <span className={styles.newsCount}>
+                    {activeNewsIndex + 1} / {newsArticles.length}
+                  </span>
+                </div>
+              ) : null}
             </section>
 
             <section id="theme-heat" className={styles.panel}>
@@ -658,10 +723,13 @@ export default function Home() {
                       key={cell.theme_id || cell.topic}
                       href={cell.theme_id ? `/timeline/${cell.theme_id}` : "#"}
                       className={styles.heatCell}
-                      style={heatToneStyle(cell.score)}
+                      style={pressureCellStyle(cell.score)}
                     >
+                      <span className={styles.heatScrim} aria-hidden />
                       <p className={styles.heatTopic}>{cell.topic}</p>
-                      <p className={styles.heatScore}>{cell.score}</p>
+                      <p className={styles.heatScore}>
+                        <span className={styles.heatScoreLabel}>Heat</span> {cell.score}
+                      </p>
                     </Link>
                   ))}
                 </div>

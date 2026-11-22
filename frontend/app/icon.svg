@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <circle cx="12" cy="12" r="12" fill="#0b0f14"/>
+  <circle cx="12" cy="12" r="8.5" fill="none" stroke="rgba(236,232,223,0.5)" stroke-width="1"/>
+  <g stroke="rgba(236,232,223,0.5)" stroke-width="1" stroke-linecap="round">
+    <line x1="12" y1="1.5" x2="12" y2="3.4"/>
+    <line x1="12" y1="20.6" x2="12" y2="22.5"/>
+    <line x1="1.5" y1="12" x2="3.4" y2="12"/>
+    <line x1="20.6" y1="12" x2="22.5" y2="12"/>
+  </g>
+  <circle cx="14.6" cy="9" r="3.6" fill="url(#brandBloom)"/>
+  <defs>
+    <radialGradient id="brandBloom" cx="35%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#57c2b0"/>
+      <stop offset="55%" stop-color="#c9a341"/>
+      <stop offset="100%" stop-color="#c8694a"/>
+    </radialGradient>
+  </defs>
+</svg>
