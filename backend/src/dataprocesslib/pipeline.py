@@ -95,6 +95,35 @@ def _clean_text(text: str) -> str | None:
         return None
     return text.strip()
 
+
+def _normalize_published_at(value: str | None) -> str | None:
+    """
+    Normalizes a scraped published-date value into an ISO 8601 UTC string.
+
+    Source HTML is inconsistent: most sites emit ISO 8601 via meta tags, but
+    some emit raw epoch seconds/milliseconds in a <time datetime="..."> attribute.
+    Passing that straight through makes Postgres's timestamptz column raise
+    "date/time field value out of range" and permanently poisons the ingestion
+    (get_actual_events.py never marks it processed, so it retries forever).
+    """
+    if not value:
+        return None
+
+    if value.isdigit():
+        epoch = int(value)
+        if epoch > 10**12:  # milliseconds
+            epoch /= 1000
+        try:
+            return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat()
+        except (OverflowError, OSError, ValueError):
+            return None
+
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return value
+    except ValueError:
+        return None
+
 # ── Single article ────────────────────────────────────────────────────────────
 def process_article(raw: dict, storage_path: str) -> dict:
     """
@@ -119,7 +148,7 @@ def process_article(raw: dict, storage_path: str) -> dict:
         entities = {"tickers": [], "countries": []}
 
     # ── Derive metadata ───────────────────────────────────────────────────────
-    published_at = raw.get("published_at") or created_at
+    published_at = _normalize_published_at(raw.get("published_at")) or created_at
     region = _derive_region(raw.get("sourcecountry"))
     asset_classes = _derive_asset_classes(title, text)
     importance_score = score_importance(
